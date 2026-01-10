@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../views/screens/home/home_screen.dart';
 
 /// 路由路径常量
 class RoutePaths {
@@ -63,32 +64,32 @@ class AppRouter {
 
   /// 路由列表
   static final List<RouteBase> _routes = [
-    // 首页
+    // 首页（包含月/周/日视图切换）
     GoRoute(
       path: RoutePaths.home,
       name: RouteNames.home,
-      builder: (context, state) => const _PlaceholderScreen(title: '首页'),
+      builder: (context, state) => const HomeScreen(),
     ),
 
-    // 月视图
+    // 独立月视图（从其他页面跳转时使用）
     GoRoute(
       path: RoutePaths.monthView,
       name: RouteNames.monthView,
-      builder: (context, state) => const _PlaceholderScreen(title: '月视图'),
+      builder: (context, state) => const HomeScreen(),
     ),
 
-    // 周视图
+    // 独立周视图（从其他页面跳转时使用）
     GoRoute(
       path: RoutePaths.weekView,
       name: RouteNames.weekView,
-      builder: (context, state) => const _PlaceholderScreen(title: '周视图'),
+      builder: (context, state) => const HomeScreen(),
     ),
 
-    // 日视图
+    // 独立日视图（从其他页面跳转时使用）
     GoRoute(
       path: RoutePaths.dayView,
       name: RouteNames.dayView,
-      builder: (context, state) => const _PlaceholderScreen(title: '日视图'),
+      builder: (context, state) => const HomeScreen(),
     ),
 
     // 事件详情
