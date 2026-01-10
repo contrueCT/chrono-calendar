@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
 import '../../../data/models/event_model.dart';
 import '../../widgets/event/event_card.dart';

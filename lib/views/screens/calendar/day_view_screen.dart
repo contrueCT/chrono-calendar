@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
 import '../../../data/models/event_model.dart';
 import '../../../core/utils/lunar_utils.dart';
-import '../../widgets/event/event_card.dart';
 
 /// 日视图页面
 class DayViewScreen extends StatelessWidget {
@@ -182,13 +181,13 @@ class _DayHeader extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      lunarInfo?.fullLunarDate ?? '',
+                      LunarUtils.getFullLunarString(date),
                       style: TextStyle(
                         fontSize: 13,
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    if (lunarInfo?.hasSpecialDay ?? false) ...[
+                    if (lunarInfo.hasSpecialDay) ...[
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -197,7 +196,7 @@ class _DayHeader extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          lunarInfo!.specialDayName!,
+                          _getSpecialDayName(lunarInfo),
                           style: TextStyle(
                             fontSize: 11,
                             color: colorScheme.onPrimaryContainer,
@@ -232,6 +231,20 @@ class _DayHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// 获取特殊日期名称（节气 > 农历节日 > 公历节日）
+  String _getSpecialDayName(LunarDateInfo info) {
+    if (info.solarTerm != null && info.solarTerm!.isNotEmpty) {
+      return info.solarTerm!;
+    }
+    if (info.lunarFestival != null && info.lunarFestival!.isNotEmpty) {
+      return info.lunarFestival!;
+    }
+    if (info.solarFestival != null && info.solarFestival!.isNotEmpty) {
+      return info.solarFestival!;
+    }
+    return '';
   }
 }
 
