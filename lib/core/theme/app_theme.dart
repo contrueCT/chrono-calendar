@@ -37,7 +37,7 @@ class AppTheme {
       ),
 
       // 卡片主题
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         color: colorScheme.surfaceContainerHighest,
         shape: RoundedRectangleBorder(
@@ -176,7 +176,7 @@ class AppTheme {
       ),
 
       // 对话框主题
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: colorScheme.surface,
         elevation: 8,
         shape: RoundedRectangleBorder(
@@ -256,7 +256,7 @@ class AppTheme {
       ),
 
       // 卡片主题
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         color: colorScheme.surfaceContainerHighest,
         shape: RoundedRectangleBorder(
@@ -395,7 +395,7 @@ class AppTheme {
       ),
 
       // 对话框主题
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: colorScheme.surface,
         elevation: 8,
         shape: RoundedRectangleBorder(
