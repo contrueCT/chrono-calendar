@@ -29,9 +29,12 @@ void main() {
         final rule = RecurrenceRule.fromRRuleString('FREQ=DAILY;UNTIL=20261231T235959Z');
         expect(rule.frequency, Frequency.daily);
         expect(rule.until, isNotNull);
-        expect(rule.until!.year, 2026);
-        expect(rule.until!.month, 12);
-        expect(rule.until!.day, 31);
+        // UTC 时间转本地时间后可能会跨年（取决于时区）
+        // 验证解析正确：原始 UTC 是 2026-12-31 23:59:59Z
+        final utc = rule.until!.toUtc();
+        expect(utc.year, 2026);
+        expect(utc.month, 12);
+        expect(utc.day, 31);
       });
 
       test('解析每周规则带 BYDAY', () {
@@ -224,9 +227,10 @@ void main() {
       });
 
       test('带 UNTIL 限制的规则', () {
+        // UNTIL 设置为当天结束时间，确保包含该天的事件
         final rule = RecurrenceRule(
           frequency: Frequency.daily,
-          until: DateTime(2026, 1, 3),
+          until: DateTime(2026, 1, 3, 23, 59, 59),
         );
         final eventStart = DateTime(2026, 1, 1, 9, 0);
         final rangeStart = DateTime(2026, 1, 1);
@@ -239,6 +243,7 @@ void main() {
           rangeEnd,
         );
 
+        // 1/1, 1/2, 1/3 共三个实例
         expect(occurrences.length, 3);
       });
 
