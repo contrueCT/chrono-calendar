@@ -6,6 +6,7 @@ import '../data/models/recurrence_rule.dart';
 import '../data/repositories/event_repository.dart';
 import '../data/repositories/calendar_repository.dart';
 import '../core/constants/color_constants.dart';
+import '../services/reminder_manager.dart';
 
 /// 事件编辑 ViewModel
 class EventEditViewModel extends ChangeNotifier {
@@ -399,8 +400,11 @@ class EventEditViewModel extends ChangeNotifier {
         await _eventRepository.insertEvent(event);
       }
 
-      // 更新提醒
-      await _saveReminders(event.uid);
+      // 更新提醒到数据库
+      final reminders = await _saveReminders(event.uid);
+
+      // 调度通知提醒
+      await ReminderManager().updateRemindersForEvent(event, reminders);
 
       return true;
     } catch (e) {
@@ -447,20 +451,21 @@ class EventEditViewModel extends ChangeNotifier {
     }
   }
 
-  /// 保存提醒
-  Future<void> _saveReminders(String eventUid) async {
+  /// 保存提醒并返回提醒列表
+  Future<List<ReminderModel>> _saveReminders(String eventUid) async {
     // 生成通知 ID（使用事件 UID 的 hashCode 作为基础）
-    final baseNotificationId = eventUid.hashCode.abs();
+    final baseNotificationId = eventUid.hashCode.abs() % 2147483647;
 
     final reminders = _reminderMinutes.asMap().entries.map((entry) {
       return ReminderModel(
         eventUid: eventUid,
         triggerMinutes: entry.value,
-        notificationId: baseNotificationId + entry.key,
+        notificationId: (baseNotificationId + entry.key) % 2147483647,
       );
     }).toList();
 
     await _eventRepository.updateReminders(eventUid, reminders);
+    return reminders;
   }
 
   // ==================== 重复规则便捷方法 ====================

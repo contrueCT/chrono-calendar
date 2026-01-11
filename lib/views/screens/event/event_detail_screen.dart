@@ -8,6 +8,7 @@ import '../../../data/repositories/event_repository.dart';
 import '../../../data/repositories/calendar_repository.dart';
 import '../../../data/models/calendar_model.dart';
 import '../../../core/utils/lunar_utils.dart';
+import '../../../services/reminder_manager.dart';
 
 /// 事件详情页面
 class EventDetailScreen extends StatefulWidget {
@@ -526,13 +527,23 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   Future<void> _performDelete(BuildContext context, _DeleteType type) async {
     try {
+      final reminderManager = ReminderManager();
+
       switch (type) {
         case _DeleteType.all:
+          // 取消所有提醒通知
+          await reminderManager.cancelRemindersForEvent(_event!.uid);
+          // 删除事件
           await _eventRepository.deleteEvent(_event!.uid);
           break;
         case _DeleteType.instance:
           if (widget.instanceDate != null) {
             await _eventRepository.addExcludeDate(_event!.uid, widget.instanceDate!);
+            // 重新调度提醒（会排除被删除的实例）
+            final reminders = await _eventRepository.getRemindersForEvent(_event!.uid);
+            if (reminders.isNotEmpty) {
+              await reminderManager.updateRemindersForEvent(_event!, reminders);
+            }
           }
           break;
         case _DeleteType.future:
@@ -548,6 +559,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             updatedAt: DateTime.now(),
           );
           await _eventRepository.updateEvent(updatedEvent);
+          // 重新调度提醒（根据新的 UNTIL 范围）
+          final reminders = await _eventRepository.getRemindersForEvent(_event!.uid);
+          if (reminders.isNotEmpty) {
+            await reminderManager.updateRemindersForEvent(updatedEvent, reminders);
+          }
           break;
       }
 
