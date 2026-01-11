@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../views/screens/home/home_screen.dart';
+import '../../views/screens/event/event_edit_screen.dart';
+import '../../views/screens/event/event_detail_screen.dart';
+import '../../data/repositories/event_repository.dart';
 
 /// 路由路径常量
 class RoutePaths {
@@ -98,7 +101,15 @@ class AppRouter {
       name: RouteNames.eventDetail,
       builder: (context, state) {
         final uid = state.pathParameters['uid'] ?? '';
-        return _PlaceholderScreen(title: '事件详情: $uid');
+        final instanceDateStr = state.uri.queryParameters['instanceDate'];
+        DateTime? instanceDate;
+        if (instanceDateStr != null) {
+          instanceDate = DateTime.tryParse(instanceDateStr);
+        }
+        return EventDetailScreen(
+          eventUid: uid,
+          instanceDate: instanceDate,
+        );
       },
     ),
 
@@ -108,7 +119,30 @@ class AppRouter {
       name: RouteNames.eventEdit,
       builder: (context, state) {
         final uid = state.uri.queryParameters['uid'];
-        return _PlaceholderScreen(title: '编辑事件: ${uid ?? "新建"}');
+        final dateStr = state.uri.queryParameters['date'];
+        DateTime? initialDate;
+        if (dateStr != null) {
+          initialDate = DateTime.tryParse(dateStr);
+        }
+        // 如果有 uid，加载事件进行编辑
+        if (uid != null) {
+          return FutureBuilder(
+            future: EventRepository().getEventByUid(uid),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              return EventEditScreen(
+                event: snapshot.data,
+                initialDate: initialDate,
+              );
+            },
+          );
+        }
+        // 创建新事件
+        return EventEditScreen(initialDate: initialDate);
       },
     ),
 
@@ -118,7 +152,11 @@ class AppRouter {
       name: RouteNames.eventCreate,
       builder: (context, state) {
         final dateStr = state.uri.queryParameters['date'];
-        return _PlaceholderScreen(title: '创建事件: ${dateStr ?? ""}');
+        DateTime? initialDate;
+        if (dateStr != null) {
+          initialDate = DateTime.tryParse(dateStr);
+        }
+        return EventEditScreen(initialDate: initialDate);
       },
     ),
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
 import '../calendar/month_view_screen.dart';
 import '../calendar/week_view_screen.dart';
@@ -187,15 +188,12 @@ class _HomeScreenContent extends StatelessWidget {
   }
 
   Widget _buildFAB(BuildContext context, ColorScheme colorScheme) {
+    final viewModel = context.read<CalendarViewModel>();
     return FloatingActionButton(
       onPressed: () {
-        // TODO: 导航到创建事件页面
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('创建事件功能将在后续版本实现'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        // 使用选中的日期作为初始日期
+        final date = viewModel.selectedDate;
+        context.push('/event/create?date=${date.toIso8601String()}');
       },
       backgroundColor: colorScheme.primary,
       foregroundColor: colorScheme.onPrimary,
