@@ -4,6 +4,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'app.dart';
 import 'services/database_service.dart';
+import 'services/notification_service.dart';
+import 'services/reminder_manager.dart';
 import 'viewmodels/settings_viewmodel.dart';
 
 void main() async {
@@ -15,6 +17,14 @@ void main() async {
 
   // 初始化数据库
   await DatabaseService().database;
+
+  // 初始化通知服务
+  await NotificationService().initialize(
+    onNotificationTap: _onNotificationTap,
+  );
+
+  // 初始化提醒管理器（会刷新所有提醒）
+  await ReminderManager().initialize();
 
   // 设置系统 UI 样式
   SystemChrome.setSystemUIOverlayStyle(
@@ -44,4 +54,12 @@ void main() async {
       child: const ChronoApp(),
     ),
   );
+}
+
+/// 通知点击回调
+void _onNotificationTap(String? payload) {
+  // 解析 payload 并导航到事件详情
+  // 由于此时可能没有 Navigator context，需要通过全局 key 处理
+  // 实际导航逻辑将在 app.dart 中通过 navigatorKey 实现
+  debugPrint('Notification tapped with payload: $payload');
 }
