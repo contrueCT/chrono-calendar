@@ -4,6 +4,7 @@ import '../../views/screens/home/home_screen.dart';
 import '../../views/screens/event/event_edit_screen.dart';
 import '../../views/screens/event/event_detail_screen.dart';
 import '../../views/screens/calendar_manage/import_export_screen.dart';
+import '../../views/screens/calendar_manage/subscription_screen.dart';
 import '../../data/repositories/event_repository.dart';
 
 /// 路由路径常量
@@ -196,7 +197,7 @@ class AppRouter {
     GoRoute(
       path: RoutePaths.subscription,
       name: RouteNames.subscription,
-      builder: (context, state) => const _PlaceholderScreen(title: '订阅管理'),
+      builder: (context, state) => const SubscriptionScreen(),
     ),
 
     // 导入导出
