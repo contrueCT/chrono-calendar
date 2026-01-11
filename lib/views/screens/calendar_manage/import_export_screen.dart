@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import '../../../data/models/calendar_model.dart';
 import '../../../data/models/event_model.dart';
+import '../../../data/models/reminder_model.dart';
 import '../../../data/repositories/calendar_repository.dart';
 import '../../../data/repositories/event_repository.dart';
 import '../../../services/icalendar_service.dart';
