@@ -304,6 +304,80 @@ class CalendarViewModel extends ChangeNotifier {
     await _loadEventsForCurrentRange();
   }
 
+  // ==================== 事件拖拽更新 ====================
+
+  /// 更新事件时间（拖拽后）
+  /// [eventInstance] 要更新的事件实例
+  /// [newStart] 新的开始时间
+  /// [newEnd] 新的结束时间
+  /// 返回是否成功
+  Future<bool> updateEventTime(
+    EventInstance eventInstance,
+    DateTime newStart,
+    DateTime newEnd,
+  ) async {
+    try {
+      final event = eventInstance.event;
+
+      // 如果是重复事件的实例，需要特殊处理
+      if (event.isRecurring) {
+        // 对于重复事件，可以选择：
+        // 1. 只修改此实例（添加 EXDATE 并创建新的独立事件）
+        // 2. 修改整个系列
+        // 目前采用方案1：只修改此实例
+        await _updateRecurringEventInstance(
+          event,
+          eventInstance.instanceStart,
+          newStart,
+          newEnd,
+        );
+      } else {
+        // 非重复事件：直接更新
+        final updatedEvent = event.copyWith(
+          dtStart: newStart,
+          dtEnd: newEnd,
+          updatedAt: DateTime.now(),
+        );
+        await _eventRepository.updateEvent(updatedEvent);
+      }
+
+      // 刷新事件数据
+      await _loadEventsForCurrentRange();
+      return true;
+    } catch (e) {
+      debugPrint('更新事件时间失败: $e');
+      return false;
+    }
+  }
+
+  /// 更新重复事件的单个实例
+  Future<void> _updateRecurringEventInstance(
+    EventModel event,
+    DateTime originalInstanceStart,
+    DateTime newStart,
+    DateTime newEnd,
+  ) async {
+    // 将原实例添加到排除日期
+    await _eventRepository.addExcludeDate(event.uid, originalInstanceStart);
+
+    // 创建新的独立事件（不重复）
+    final newEvent = EventModel.create(
+      calendarId: event.calendarId,
+      summary: event.summary,
+      description: event.description,
+      location: event.location,
+      dtStart: newStart,
+      dtEnd: newEnd,
+      isAllDay: event.isAllDay,
+      // 不复制重复规则
+      color: event.color,
+      priority: event.priority,
+      url: event.url,
+    );
+
+    await _eventRepository.insertEvent(newEvent);
+  }
+
   // ==================== 工具方法 ====================
 
   /// 标准化日期（去除时间部分）
