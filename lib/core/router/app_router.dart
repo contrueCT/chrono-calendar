@@ -6,6 +6,7 @@ import '../../views/screens/event/event_detail_screen.dart';
 import '../../views/screens/calendar_manage/import_export_screen.dart';
 import '../../views/screens/calendar_manage/subscription_screen.dart';
 import '../../views/screens/search/search_screen.dart';
+import '../../views/screens/settings/llm_settings_screen.dart';
 import '../../data/repositories/event_repository.dart';
 
 /// 路由路径常量
@@ -219,7 +220,7 @@ class AppRouter {
     GoRoute(
       path: RoutePaths.llmSettings,
       name: RouteNames.llmSettings,
-      builder: (context, state) => const _PlaceholderScreen(title: 'AI 设置'),
+      builder: (context, state) => const LLMSettingsScreen(),
     ),
 
     // 天气设置

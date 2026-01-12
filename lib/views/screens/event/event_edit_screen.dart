@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/event_model.dart';
-import '../../../data/models/calendar_model.dart';
+import '../../../data/models/llm_config_model.dart';
 import '../../../viewmodels/event_edit_viewmodel.dart';
 import '../../widgets/form/date_time_picker.dart';
 import '../../widgets/form/reminder_picker.dart';
 import '../../widgets/form/recurrence_picker.dart';
 import '../../widgets/form/color_picker_field.dart';
+import '../../widgets/form/ai_input_field.dart';
 
 /// 事件编辑页面
 class EventEditScreen extends StatelessWidget {
@@ -131,95 +132,131 @@ class _EventEditScreenContentState extends State<_EventEditScreenContent> {
     ColorScheme colorScheme,
   ) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 错误提示
-          if (viewModel.errorMessage != null) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.error_outline, color: colorScheme.error, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      viewModel.errorMessage!,
-                      style: TextStyle(color: colorScheme.error),
+          // AI 智能输入（仅在创建模式下显示）
+          if (!viewModel.isEditMode)
+            AIInputField(
+              onParsed: (draft) => _onAIParsed(viewModel, draft),
+            ),
+
+          // 表单内容
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 错误提示
+                if (viewModel.errorMessage != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: colorScheme.error, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            viewModel.errorMessage!,
+                            style: TextStyle(color: colorScheme.error),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(height: 16),
                 ],
-              ),
+
+                // 标题输入
+                _buildTitleField(viewModel, theme, colorScheme),
+                const SizedBox(height: 24),
+
+                // 全天事件开关
+                _buildAllDaySwitch(viewModel, theme, colorScheme),
+                const SizedBox(height: 16),
+
+                // 日期时间选择
+                DateTimeRangePicker(
+                  startDateTime: viewModel.dtStart,
+                  endDateTime: viewModel.dtEnd,
+                  isAllDay: viewModel.isAllDay,
+                  onStartDateChanged: (date) => viewModel.setStartDate(date),
+                  onStartTimeChanged: (time) => viewModel.setStartTime(time.hour, time.minute),
+                  onEndDateChanged: (date) => viewModel.setEndDate(date),
+                  onEndTimeChanged: (time) => viewModel.setEndTime(time.hour, time.minute),
+                ),
+                const SizedBox(height: 24),
+
+                // 重复规则
+                RecurrencePicker(
+                  rule: viewModel.recurrenceRule,
+                  eventStartDate: viewModel.dtStart,
+                  onChanged: viewModel.setRecurrenceRule,
+                ),
+                const SizedBox(height: 16),
+
+                // 提醒设置
+                ReminderPicker(
+                  selectedMinutes: viewModel.reminderMinutes,
+                  onAdd: viewModel.addReminder,
+                  onRemove: viewModel.removeReminder,
+                ),
+                const SizedBox(height: 24),
+
+                // 地点
+                _buildLocationField(viewModel, theme, colorScheme),
+                const SizedBox(height: 16),
+
+                // 描述
+                _buildDescriptionField(viewModel, theme, colorScheme),
+                const SizedBox(height: 24),
+
+                // 日历选择
+                _buildCalendarPicker(viewModel, theme, colorScheme),
+                const SizedBox(height: 16),
+
+                // 颜色选择
+                CompactColorPicker(
+                  selectedColor: viewModel.color,
+                  onColorChanged: viewModel.setColor,
+                ),
+                const SizedBox(height: 16),
+
+                // URL
+                _buildUrlField(viewModel, theme, colorScheme),
+                const SizedBox(height: 32),
+              ],
             ),
-            const SizedBox(height: 16),
-          ],
-
-          // 标题输入
-          _buildTitleField(viewModel, theme, colorScheme),
-          const SizedBox(height: 24),
-
-          // 全天事件开关
-          _buildAllDaySwitch(viewModel, theme, colorScheme),
-          const SizedBox(height: 16),
-
-          // 日期时间选择
-          DateTimeRangePicker(
-            startDateTime: viewModel.dtStart,
-            endDateTime: viewModel.dtEnd,
-            isAllDay: viewModel.isAllDay,
-            onStartDateChanged: (date) => viewModel.setStartDate(date),
-            onStartTimeChanged: (time) => viewModel.setStartTime(time.hour, time.minute),
-            onEndDateChanged: (date) => viewModel.setEndDate(date),
-            onEndTimeChanged: (time) => viewModel.setEndTime(time.hour, time.minute),
           ),
-          const SizedBox(height: 24),
-
-          // 重复规则
-          RecurrencePicker(
-            rule: viewModel.recurrenceRule,
-            eventStartDate: viewModel.dtStart,
-            onChanged: viewModel.setRecurrenceRule,
-          ),
-          const SizedBox(height: 16),
-
-          // 提醒设置
-          ReminderPicker(
-            selectedMinutes: viewModel.reminderMinutes,
-            onAdd: viewModel.addReminder,
-            onRemove: viewModel.removeReminder,
-          ),
-          const SizedBox(height: 24),
-
-          // 地点
-          _buildLocationField(viewModel, theme, colorScheme),
-          const SizedBox(height: 16),
-
-          // 描述
-          _buildDescriptionField(viewModel, theme, colorScheme),
-          const SizedBox(height: 24),
-
-          // 日历选择
-          _buildCalendarPicker(viewModel, theme, colorScheme),
-          const SizedBox(height: 16),
-
-          // 颜色选择
-          CompactColorPicker(
-            selectedColor: viewModel.color,
-            onColorChanged: viewModel.setColor,
-          ),
-          const SizedBox(height: 16),
-
-          // URL
-          _buildUrlField(viewModel, theme, colorScheme),
-          const SizedBox(height: 32),
         ],
       ),
     );
+  }
+
+  /// 处理 AI 解析结果
+  void _onAIParsed(EventEditViewModel viewModel, ParsedEventDraft draft) {
+    viewModel.fillFromParsedDraft(
+      title: draft.title,
+      startTime: draft.startTime,
+      endTime: draft.endTime,
+      isAllDay: draft.isAllDay,
+      location: draft.location,
+      description: draft.description,
+      reminderMinutes: draft.reminderMinutes,
+    );
+
+    // 同步更新 TextEditingController
+    _summaryController.text = draft.title;
+    if (draft.location != null) {
+      _locationController.text = draft.location!;
+    }
+    if (draft.description != null) {
+      _descriptionController.text = draft.description!;
+    }
   }
 
   Widget _buildTitleField(

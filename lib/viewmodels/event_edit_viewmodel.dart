@@ -484,4 +484,46 @@ class EventEditViewModel extends ChangeNotifier {
     _recurrenceRule = null;
     notifyListeners();
   }
+
+  // ==================== AI 解析填充 ====================
+
+  /// 从 AI 解析结果填充表单
+  /// 此方法由 AIInputField 组件调用
+  void fillFromParsedDraft({
+    required String title,
+    DateTime? startTime,
+    DateTime? endTime,
+    bool isAllDay = false,
+    String? location,
+    String? description,
+    int? reminderMinutes,
+  }) {
+    _summary = title;
+    _isAllDay = isAllDay;
+
+    if (startTime != null) {
+      _dtStart = startTime;
+    }
+
+    if (endTime != null) {
+      _dtEnd = endTime;
+    } else if (startTime != null) {
+      // 如果没有结束时间，默认1小时后
+      _dtEnd = startTime.add(const Duration(hours: 1));
+    }
+
+    if (location != null && location.isNotEmpty) {
+      _location = location;
+    }
+
+    if (description != null && description.isNotEmpty) {
+      _description = description;
+    }
+
+    if (reminderMinutes != null) {
+      _reminderMinutes = [reminderMinutes];
+    }
+
+    notifyListeners();
+  }
 }
