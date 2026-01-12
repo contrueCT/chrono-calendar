@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
 import '../../../data/models/event_model.dart';
 import '../../../core/utils/lunar_utils.dart';
+import '../../widgets/calendar/draggable_event.dart';
 
 /// 日视图页面
 class DayViewScreen extends StatelessWidget {
@@ -464,22 +466,18 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
   }
 
   Widget _buildEventBlock(EventInstance event, ColorScheme colorScheme) {
-    // 计算事件在时间轴上的位置
-    final startMinutes = event.instanceStart.hour * 60 + event.instanceStart.minute;
-    final endMinutes = event.instanceEnd.hour * 60 + event.instanceEnd.minute;
-    final durationMinutes = endMinutes - startMinutes;
-
-    final top = startMinutes * hourHeight / 60;
-    final height = (durationMinutes * hourHeight / 60).clamp(40.0, double.infinity);
-
-    return Positioned(
-      left: 60,
-      right: 16,
-      top: top,
-      height: height,
-      child: GestureDetector(
-        onTap: () => _onEventTap(event),
-        child: _DayEventCard(event: event, height: height),
+    return DraggableEventWidget(
+      event: event,
+      hourHeight: hourHeight,
+      leftOffset: 60,
+      rightOffset: 16,
+      showDetails: true,
+      onTap: () => _onEventTap(context, event),
+      onDragComplete: (newStart, newEnd) => _onEventDragComplete(
+        context,
+        event,
+        newStart,
+        newEnd,
       ),
     );
   }
@@ -523,137 +521,55 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
     );
   }
 
-  void _onEventTap(EventInstance event) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('点击了事件: ${event.event.summary}'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
+  void _onEventTap(BuildContext context, EventInstance event) {
+    // 跳转到事件详情页
+    final instanceDateStr = event.instanceStart.toIso8601String();
+    context.push('/event/${event.event.uid}?instanceDate=$instanceDateStr');
   }
-}
 
-/// 日视图事件卡片
-class _DayEventCard extends StatelessWidget {
-  final EventInstance event;
-  final double height;
+  Future<void> _onEventDragComplete(
+    BuildContext context,
+    EventInstance event,
+    DateTime newStart,
+    DateTime newEnd,
+  ) async {
+    final viewModel = widget.viewModel;
+    final success = await viewModel.updateEventTime(event, newStart, newEnd);
 
-  const _DayEventCard({
-    required this.event,
-    required this.height,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final eventColor = Color(event.event.color ?? colorScheme.primary.value);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 1),
-      decoration: BoxDecoration(
-        color: eventColor.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: eventColor.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          // 左侧颜色条
-          Container(
-            width: 4,
-            decoration: BoxDecoration(
-              color: eventColor,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                bottomLeft: Radius.circular(8),
-              ),
-            ),
-          ),
-
-          // 内容区域
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 标题
-                  Text(
-                    event.event.summary,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.onSurface,
+    if (context.mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('已更新: ${event.event.summary}'),
+            duration: const Duration(seconds: 2),
+            action: SnackBarAction(
+              label: '撤销',
+              onPressed: () async {
+                // 撤销：恢复原始时间
+                await viewModel.updateEventTime(
+                  EventInstance(
+                    event: event.event.copyWith(
+                      dtStart: newStart,
+                      dtEnd: newEnd,
                     ),
-                    maxLines: height > 60 ? 2 : 1,
-                    overflow: TextOverflow.ellipsis,
+                    instanceStart: newStart,
+                    instanceEnd: newEnd,
                   ),
-
-                  // 时间（如果高度足够）
-                  if (height > 50) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 12,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${DateFormat('HH:mm').format(event.instanceStart)} - ${DateFormat('HH:mm').format(event.instanceEnd)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-
-                  // 地点（如果高度足够）
-                  if (height > 80 && event.event.location != null) ...[
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          size: 12,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            event.event.location!,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
+                  event.instanceStart,
+                  event.instanceEnd,
+                );
+              },
             ),
           ),
-
-          // 重复图标
-          if (event.event.isRecurring)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Icon(
-                Icons.repeat,
-                size: 16,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-        ],
-      ),
-    );
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('更新失败，请重试'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 }
