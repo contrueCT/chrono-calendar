@@ -222,12 +222,12 @@ class DbConstants {
   ''';
 
   /// LLM 配置表
+  /// 注意：API Key 使用 flutter_secure_storage 单独存储，不在数据库中
   static const String createLlmConfigTable = '''
     CREATE TABLE $tableLlmConfig (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       base_url TEXT NOT NULL,
-      api_key TEXT NOT NULL,
       model TEXT NOT NULL,
       is_active INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
