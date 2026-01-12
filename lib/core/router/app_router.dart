@@ -5,6 +5,7 @@ import '../../views/screens/event/event_edit_screen.dart';
 import '../../views/screens/event/event_detail_screen.dart';
 import '../../views/screens/calendar_manage/import_export_screen.dart';
 import '../../views/screens/calendar_manage/subscription_screen.dart';
+import '../../views/screens/search/search_screen.dart';
 import '../../data/repositories/event_repository.dart';
 
 /// 路由路径常量
@@ -166,7 +167,7 @@ class AppRouter {
     GoRoute(
       path: RoutePaths.search,
       name: RouteNames.search,
-      builder: (context, state) => const _PlaceholderScreen(title: '搜索'),
+      builder: (context, state) => const SearchScreen(),
     ),
 
     // 倒计时

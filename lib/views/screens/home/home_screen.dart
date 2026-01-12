@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
+import '../../../core/router/app_router.dart';
 import '../calendar/month_view_screen.dart';
 import '../calendar/week_view_screen.dart';
 import '../calendar/day_view_screen.dart';
+import '../../widgets/common/date_jump_dialog.dart';
 
 /// 首页 - 日历主页面
 class HomeScreen extends StatefulWidget {
@@ -105,16 +107,27 @@ class _HomeScreenContent extends StatelessWidget {
             ),
           ),
         ),
+        // 日期跳转按钮
+        IconButton(
+          onPressed: () async {
+            final date = await DateJumpDialog.show(
+              context,
+              initialDate: viewModel.selectedDate,
+            );
+            if (date != null) {
+              viewModel.jumpToDate(date);
+            }
+          },
+          icon: Icon(
+            Icons.date_range,
+            color: colorScheme.onSurfaceVariant,
+          ),
+          tooltip: '跳转到日期',
+        ),
         // 搜索按钮
         IconButton(
           onPressed: () {
-            // TODO: 导航到搜索页面
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('搜索功能将在后续版本实现'),
-                duration: Duration(seconds: 1),
-              ),
-            );
+            context.push(RoutePaths.search);
           },
           icon: Icon(
             Icons.search,
@@ -314,40 +327,16 @@ class _HomeScreenContent extends StatelessWidget {
   void _onMenuSelected(BuildContext context, String value) {
     switch (value) {
       case 'settings':
-        // TODO: 导航到设置页面
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('设置页面将在后续版本实现'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        context.push(RoutePaths.settings);
         break;
       case 'calendars':
-        // TODO: 导航到日历管理页面
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('日历管理页面将在后续版本实现'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        context.push(RoutePaths.calendarManage);
         break;
       case 'import':
-        // TODO: 导入日历
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('导入功能将在后续版本实现'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        context.push(RoutePaths.importExport);
         break;
       case 'export':
-        // TODO: 导出日历
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('导出功能将在后续版本实现'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        context.push(RoutePaths.importExport);
         break;
     }
   }
