@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
 import '../../../data/models/event_model.dart';
-import '../../widgets/event/event_card.dart';
+import '../../widgets/calendar/draggable_event.dart';
 
 /// 周视图页面
 class WeekViewScreen extends StatelessWidget {
@@ -367,23 +368,15 @@ class _WeekTimeGridState extends State<_WeekTimeGrid> {
     EventInstance event,
     ColorScheme colorScheme,
   ) {
-    // 计算事件在时间轴上的位置
-    final startMinutes = event.instanceStart.hour * 60 + event.instanceStart.minute;
-    final endMinutes = event.instanceEnd.hour * 60 + event.instanceEnd.minute;
-    final durationMinutes = endMinutes - startMinutes;
-
-    final top = startMinutes * hourHeight / 60;
-    final height = (durationMinutes * hourHeight / 60).clamp(20.0, double.infinity);
-
-    return Positioned(
-      left: 2,
-      right: 2,
-      top: top,
-      height: height,
-      child: GradientEventCard(
-        event: event,
-        height: height,
-        onTap: () => _onEventTap(context, event),
+    return CompactDraggableEvent(
+      event: event,
+      hourHeight: hourHeight,
+      onTap: () => _onEventTap(context, event),
+      onDragComplete: (newStart, newEnd) => _onEventDragComplete(
+        context,
+        event,
+        newStart,
+        newEnd,
       ),
     );
   }
@@ -439,12 +432,55 @@ class _WeekTimeGridState extends State<_WeekTimeGrid> {
   }
 
   void _onEventTap(BuildContext context, EventInstance event) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('点击了事件: ${event.event.summary}'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
+    // 跳转到事件详情页
+    final instanceDateStr = event.instanceStart.toIso8601String();
+    context.push('/event/${event.event.uid}?instanceDate=$instanceDateStr');
+  }
+
+  Future<void> _onEventDragComplete(
+    BuildContext context,
+    EventInstance event,
+    DateTime newStart,
+    DateTime newEnd,
+  ) async {
+    final viewModel = widget.viewModel;
+    final success = await viewModel.updateEventTime(event, newStart, newEnd);
+
+    if (context.mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('已更新: ${event.event.summary}'),
+            duration: const Duration(seconds: 2),
+            action: SnackBarAction(
+              label: '撤销',
+              onPressed: () async {
+                // 撤销：恢复原始时间
+                await viewModel.updateEventTime(
+                  EventInstance(
+                    event: event.event.copyWith(
+                      dtStart: newStart,
+                      dtEnd: newEnd,
+                    ),
+                    instanceStart: newStart,
+                    instanceEnd: newEnd,
+                  ),
+                  event.instanceStart,
+                  event.instanceEnd,
+                );
+              },
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('更新失败，请重试'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 }
 
