@@ -7,6 +7,8 @@ import '../../views/screens/calendar_manage/import_export_screen.dart';
 import '../../views/screens/calendar_manage/subscription_screen.dart';
 import '../../views/screens/search/search_screen.dart';
 import '../../views/screens/settings/llm_settings_screen.dart';
+import '../../views/screens/countdown/countdown_list_screen.dart';
+import '../../views/screens/countdown/countdown_edit_screen.dart';
 import '../../data/repositories/event_repository.dart';
 
 /// 路由路径常量
@@ -171,20 +173,25 @@ class AppRouter {
       builder: (context, state) => const SearchScreen(),
     ),
 
-    // 倒计时
+    // 倒计时列表
     GoRoute(
       path: RoutePaths.countdown,
       name: RouteNames.countdown,
-      builder: (context, state) => const _PlaceholderScreen(title: '倒计时'),
+      builder: (context, state) => const CountdownListScreen(),
     ),
 
-    // 倒计时编辑
+    // 倒计时创建
     GoRoute(
-      path: RoutePaths.countdownEdit,
-      name: RouteNames.countdownEdit,
+      path: '/countdown/create',
+      builder: (context, state) => const CountdownEditScreen(),
+    ),
+
+    // 倒计时编辑/详情
+    GoRoute(
+      path: '/countdown/:id',
       builder: (context, state) {
-        final id = state.uri.queryParameters['id'];
-        return _PlaceholderScreen(title: '编辑倒计时: ${id ?? "新建"}');
+        final id = state.pathParameters['id'];
+        return CountdownEditScreen(countdownId: id);
       },
     ),
 
