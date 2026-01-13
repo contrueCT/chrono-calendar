@@ -9,6 +9,7 @@ import '../../../data/repositories/calendar_repository.dart';
 import '../../../data/models/calendar_model.dart';
 import '../../../core/utils/lunar_utils.dart';
 import '../../../services/reminder_manager.dart';
+import 'event_share_screen.dart';
 
 /// 事件详情页面
 class EventDetailScreen extends StatefulWidget {
@@ -135,6 +136,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             icon: const Icon(Icons.arrow_back),
           ),
           actions: [
+            // 分享按钮
+            IconButton(
+              onPressed: () => _handleShare(context),
+              icon: const Icon(Icons.share_outlined),
+              tooltip: '分享',
+            ),
             // 编辑按钮
             IconButton(
               onPressed: () => _handleEdit(context),
@@ -461,6 +468,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   void _handleEdit(BuildContext context) {
     context.push('/event/edit?uid=${_event!.uid}');
+  }
+
+  void _handleShare(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EventShareScreen(
+          event: _event!,
+          instanceDate: widget.instanceDate,
+        ),
+      ),
+    );
   }
 
   void _handleMenuAction(BuildContext context, String action) {
