@@ -187,9 +187,23 @@ class CountdownService {
     }
   }
 
-  /// 生成通知 ID
+  /// 生成通知 ID（使用 FNV-1a 风格哈希减少碰撞）
+  ///
+  /// 基于倒计时 ID 和提前天数生成唯一 ID。
+  /// 使用 FNV-1a 32-bit 哈希算法，比 Dart 内置 hashCode 有更好的分布性。
   int _generateNotificationId(String countdownId, int daysBefore) {
-    return (countdownId.hashCode + daysBefore * 1000) & 0x7FFFFFFF;
+    final input = 'countdown|$countdownId|$daysBefore';
+
+    // FNV-1a 32-bit 哈希算法
+    int hash = 0x811c9dc5; // FNV offset basis
+    const int prime = 0x01000193; // FNV prime
+
+    for (int i = 0; i < input.length; i++) {
+      hash ^= input.codeUnitAt(i);
+      hash = (hash * prime) & 0xFFFFFFFF;
+    }
+
+    return hash & 0x7FFFFFFF;
   }
 
   /// 刷新所有倒计时的提醒（用于每年重复的倒计时）

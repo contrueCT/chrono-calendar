@@ -65,9 +65,15 @@ class SubscriptionService {
   factory SubscriptionService() => _instance;
   SubscriptionService._internal();
 
+  /// 最大重试次数
+  static const int _maxRetries = 3;
+
+  /// 初始重试延迟（毫秒）
+  static const int _initialRetryDelayMs = 1000;
+
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 30),
-    receiveTimeout: const Duration(seconds: 60),
+    receiveTimeout: const Duration(seconds: 120),  // 增加到 2 分钟，支持大文件
     headers: {
       'Accept': 'text/calendar, application/calendar+json, */*',
       'User-Agent': 'Chrono Calendar/1.0',
@@ -93,8 +99,8 @@ class SubscriptionService {
         };
       }
 
-      // 尝试获取内容
-      final response = await _dio.get(url);
+      // 尝试获取内容（带重试）
+      final response = await _getWithRetry(url);
 
       if (response.statusCode != 200) {
         return {
@@ -181,8 +187,8 @@ class SubscriptionService {
         return SubscriptionSyncResult.failure('不是订阅日历');
       }
 
-      // 获取远程内容
-      final response = await _dio.get(calendar.subscriptionUrl!);
+      // 获取远程内容（带重试）
+      final response = await _getWithRetry(calendar.subscriptionUrl!);
 
       if (response.statusCode != 200) {
         return SubscriptionSyncResult.failure('HTTP 错误: ${response.statusCode}');
@@ -370,5 +376,52 @@ class SubscriptionService {
       default:
         return '网络错误: ${e.message}';
     }
+  }
+
+  /// 检查错误是否可重试
+  bool _isRetryableError(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.connectionError:
+        return true;
+      case DioExceptionType.badResponse:
+        // 5xx 服务器错误可重试，4xx 客户端错误不可重试
+        final statusCode = e.response?.statusCode ?? 0;
+        return statusCode >= 500 && statusCode < 600;
+      default:
+        return false;
+    }
+  }
+
+  /// 带重试的 HTTP GET 请求
+  ///
+  /// 使用指数退避策略：1秒 -> 2秒 -> 4秒
+  Future<Response<dynamic>> _getWithRetry(String url) async {
+    DioException? lastError;
+
+    for (int attempt = 0; attempt < _maxRetries; attempt++) {
+      try {
+        return await _dio.get(url);
+      } on DioException catch (e) {
+        lastError = e;
+
+        // 如果不可重试，直接抛出
+        if (!_isRetryableError(e)) {
+          rethrow;
+        }
+
+        // 如果还有重试机会，等待后重试
+        if (attempt < _maxRetries - 1) {
+          final delay = _initialRetryDelayMs * (1 << attempt);  // 指数退避
+          debugPrint('请求失败，${delay}ms 后重试 (${attempt + 1}/$_maxRetries): ${e.message}');
+          await Future.delayed(Duration(milliseconds: delay));
+        }
+      }
+    }
+
+    // 所有重试都失败，抛出最后一个错误
+    throw lastError!;
   }
 }

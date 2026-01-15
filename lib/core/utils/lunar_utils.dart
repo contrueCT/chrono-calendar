@@ -4,11 +4,49 @@ import 'package:lunar/lunar.dart';
 class LunarUtils {
   LunarUtils._();
 
-  /// 获取农历日期信息
-  static LunarDateInfo getLunarInfo(DateTime date) {
-    final lunar = Lunar.fromDate(date);
+  /// 农历信息缓存（以日期字符串为键）
+  /// 使用 LinkedHashMap 实现简单的 LRU 缓存
+  static final Map<String, LunarDateInfo> _cache = {};
 
-    return LunarDateInfo(
+  /// 显示文本缓存
+  static final Map<String, String> _displayTextCache = {};
+
+  /// 缓存最大容量
+  static const int _maxCacheSize = 200;
+
+  /// 生成缓存键
+  static String _getCacheKey(DateTime date) {
+    return '${date.year}-${date.month}-${date.day}';
+  }
+
+  /// 清理缓存（保留最近一半的条目）
+  static void _trimCache(Map<String, dynamic> cache) {
+    if (cache.length > _maxCacheSize) {
+      final keysToRemove = cache.keys.take(cache.length ~/ 2).toList();
+      for (final key in keysToRemove) {
+        cache.remove(key);
+      }
+    }
+  }
+
+  /// 清空缓存（如需要）
+  static void clearCache() {
+    _cache.clear();
+    _displayTextCache.clear();
+  }
+
+  /// 获取农历日期信息（带缓存）
+  static LunarDateInfo getLunarInfo(DateTime date) {
+    final cacheKey = _getCacheKey(date);
+
+    // 检查缓存
+    if (_cache.containsKey(cacheKey)) {
+      return _cache[cacheKey]!;
+    }
+
+    // 计算农历信息
+    final lunar = Lunar.fromDate(date);
+    final info = LunarDateInfo(
       year: lunar.getYear(),
       month: lunar.getMonth(),
       day: lunar.getDay(),
@@ -23,33 +61,51 @@ class LunarUtils {
       lunarFestival: _getLunarFestival(lunar),
       solarFestival: _getSolarFestival(date),
     );
+
+    // 存入缓存
+    _trimCache(_cache);
+    _cache[cacheKey] = info;
+
+    return info;
   }
 
   /// 获取日历单元格显示文本（优先级：节气 > 农历节日 > 公历节日 > 农历日期）
+  /// 带缓存，避免重复计算
   static String getDisplayText(DateTime date) {
+    final cacheKey = _getCacheKey(date);
+
+    // 检查显示文本缓存
+    if (_displayTextCache.containsKey(cacheKey)) {
+      return _displayTextCache[cacheKey]!;
+    }
+
     final info = getLunarInfo(date);
+    String displayText;
 
     // 优先显示节气
     if (info.solarTerm != null && info.solarTerm!.isNotEmpty) {
-      return info.solarTerm!;
+      displayText = info.solarTerm!;
     }
-
     // 其次显示农历节日
-    if (info.lunarFestival != null && info.lunarFestival!.isNotEmpty) {
-      return info.lunarFestival!;
+    else if (info.lunarFestival != null && info.lunarFestival!.isNotEmpty) {
+      displayText = info.lunarFestival!;
     }
-
     // 然后显示公历节日
-    if (info.solarFestival != null && info.solarFestival!.isNotEmpty) {
-      return info.solarFestival!;
+    else if (info.solarFestival != null && info.solarFestival!.isNotEmpty) {
+      displayText = info.solarFestival!;
     }
-
     // 初一显示月份，其他显示日
-    if (info.day == 1) {
-      return '${info.monthName}月';
+    else if (info.day == 1) {
+      displayText = '${info.monthName}月';
+    } else {
+      displayText = info.dayName;
     }
 
-    return info.dayName;
+    // 存入缓存
+    _trimCache(_displayTextCache);
+    _displayTextCache[cacheKey] = displayText;
+
+    return displayText;
   }
 
   /// 获取农历节日

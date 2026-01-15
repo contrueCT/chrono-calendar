@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../data/models/event_model.dart';
@@ -8,6 +9,9 @@ import '../core/utils/rrule_parser.dart';
 import 'notification_service.dart';
 
 /// 提醒管理器 - 负责调度和维护事件提醒
+///
+/// 使用并发控制确保同一时间只有一个刷新操作在进行，
+/// 并限制同时处理的事件数量以避免数据库锁定。
 class ReminderManager {
   // 单例模式
   static final ReminderManager _instance = ReminderManager._internal();
@@ -20,6 +24,13 @@ class ReminderManager {
   /// 提醒预生成天数（针对重复事件）
   static const int _preGenerateDays = 90;
 
+  /// 最大并发处理事件数
+  static const int _maxConcurrentEvents = 5;
+
+  /// 刷新操作锁，确保同一时间只有一个刷新在进行
+  bool _isRefreshing = false;
+  Completer<void>? _refreshCompleter;
+
   /// 初始化提醒管理器
   Future<void> initialize() async {
     debugPrint('ReminderManager initializing...');
@@ -30,16 +41,34 @@ class ReminderManager {
     debugPrint('ReminderManager initialized');
   }
 
-  /// 生成通知 ID
-  /// 基于事件 UID、触发时间和实例日期生成唯一 ID
+  /// 生成通知 ID（使用 FNV-1a 风格哈希减少碰撞）
+  ///
+  /// 基于事件 UID、触发时间和实例日期生成唯一 ID。
+  /// 使用 FNV-1a 32-bit 哈希算法，比 Dart 内置 hashCode 有更好的分布性。
+  ///
+  /// 注意：虽然哈希碰撞仍然可能发生，但概率已大大降低。
+  /// 对于日历应用的正常使用场景（几千个事件），碰撞概率可以忽略不计。
   int _generateNotificationId(
     String eventUid,
     int triggerMinutes,
     DateTime instanceDate,
   ) {
-    // 使用事件 UID、触发分钟数和实例日期的组合生成哈希
-    final combined = '$eventUid-$triggerMinutes-${instanceDate.millisecondsSinceEpoch}';
-    return combined.hashCode.abs() % 2147483647; // 确保是正整数且在 int32 范围内
+    // 使用日期而非毫秒时间戳，减少不必要的变化
+    final dateKey = '${instanceDate.year}${instanceDate.month.toString().padLeft(2, '0')}${instanceDate.day.toString().padLeft(2, '0')}';
+    final input = '$eventUid|$triggerMinutes|$dateKey';
+
+    // FNV-1a 32-bit 哈希算法
+    // 参考: http://www.isthe.com/chongo/tech/comp/fnv/
+    int hash = 0x811c9dc5; // FNV offset basis
+    const int prime = 0x01000193; // FNV prime
+
+    for (int i = 0; i < input.length; i++) {
+      hash ^= input.codeUnitAt(i);
+      hash = (hash * prime) & 0xFFFFFFFF; // 保持在 32 位范围内
+    }
+
+    // 确保结果是正整数（Android 通知 ID 需要正整数）
+    return hash & 0x7FFFFFFF;
   }
 
   /// 为单个事件调度提醒
@@ -217,57 +246,101 @@ class ReminderManager {
 
   /// 刷新所有提醒
   ///
-  /// 这会清除所有现有提醒并重新调度
-  /// 通常在应用启动或设置更改时调用
+  /// 这会清除所有现有提醒并重新调度。
+  /// 通常在应用启动或设置更改时调用。
+  ///
+  /// 并发控制：
+  /// - 使用锁确保同一时间只有一个刷新操作在进行
+  /// - 如果已有刷新在进行，后续调用会等待其完成
+  /// - 使用批量处理限制并发数量，避免数据库锁定
   Future<void> refreshAllReminders() async {
-    debugPrint('Refreshing all reminders...');
-
-    // 取消所有现有通知
-    await _notificationService.cancelAllNotifications();
-
-    // 获取所有事件
-    final events = await _eventRepository.getAllEvents();
-
-    int scheduledCount = 0;
-
-    for (final event in events) {
-      final reminders = await _eventRepository.getRemindersForEvent(event.uid);
-
-      if (reminders.isEmpty) continue;
-
-      if (event.isRecurring) {
-        await _scheduleRecurringEventReminders(event, reminders);
-      } else {
-        // 检查事件是否还未过期
-        if (event.dtStart.isAfter(DateTime.now())) {
-          await scheduleRemindersForEvent(event, reminders);
-        }
+    // 如果已有刷新在进行，等待其完成
+    if (_isRefreshing) {
+      debugPrint('Refresh already in progress, waiting...');
+      if (_refreshCompleter != null) {
+        await _refreshCompleter!.future;
       }
-
-      scheduledCount++;
+      return;
     }
 
-    debugPrint('Refreshed reminders for $scheduledCount events');
+    _isRefreshing = true;
+    _refreshCompleter = Completer<void>();
+
+    try {
+      debugPrint('Refreshing all reminders...');
+
+      // 取消所有现有通知
+      await _notificationService.cancelAllNotifications();
+
+      // 获取所有事件
+      final events = await _eventRepository.getAllEvents();
+
+      int scheduledCount = 0;
+
+      // 批量处理事件，限制并发数量
+      for (var i = 0; i < events.length; i += _maxConcurrentEvents) {
+        final batch = events.skip(i).take(_maxConcurrentEvents).toList();
+
+        await Future.wait(batch.map((event) async {
+          final reminders = await _eventRepository.getRemindersForEvent(event.uid);
+
+          if (reminders.isEmpty) return;
+
+          if (event.isRecurring) {
+            await _scheduleRecurringEventReminders(event, reminders);
+          } else {
+            // 检查事件是否还未过期
+            if (event.dtStart.isAfter(DateTime.now())) {
+              await scheduleRemindersForEvent(event, reminders);
+            }
+          }
+        }));
+
+        scheduledCount += batch.length;
+      }
+
+      debugPrint('Refreshed reminders for $scheduledCount events');
+    } finally {
+      _isRefreshing = false;
+      _refreshCompleter?.complete();
+      _refreshCompleter = null;
+    }
   }
 
   /// 维护提醒（定期调用）
   ///
   /// 这会为重复事件补充新的提醒（扩展预生成范围）
-  /// 并清理过期的提醒记录
+  /// 并清理过期的提醒记录。
+  ///
+  /// 并发控制：如果 refreshAllReminders 正在进行，此方法会等待其完成。
   Future<void> maintainReminders() async {
+    // 如果刷新正在进行，等待其完成
+    if (_isRefreshing) {
+      debugPrint('Refresh in progress, skipping maintenance');
+      if (_refreshCompleter != null) {
+        await _refreshCompleter!.future;
+      }
+      return;
+    }
+
     debugPrint('Maintaining reminders...');
 
     // 获取所有重复事件
     final recurringEvents = await _eventRepository.getRecurringEvents();
 
-    for (final event in recurringEvents) {
-      final reminders = await _eventRepository.getRemindersForEvent(event.uid);
+    // 批量处理，限制并发
+    for (var i = 0; i < recurringEvents.length; i += _maxConcurrentEvents) {
+      final batch = recurringEvents.skip(i).take(_maxConcurrentEvents).toList();
 
-      if (reminders.isEmpty) continue;
+      await Future.wait(batch.map((event) async {
+        final reminders = await _eventRepository.getRemindersForEvent(event.uid);
 
-      // 只为新的时间范围添加提醒
-      // 这里简单实现为重新调度所有（实际项目可以优化）
-      await _scheduleRecurringEventReminders(event, reminders);
+        if (reminders.isEmpty) return;
+
+        // 只为新的时间范围添加提醒
+        // 这里简单实现为重新调度所有（实际项目可以优化）
+        await _scheduleRecurringEventReminders(event, reminders);
+      }));
     }
 
     debugPrint('Maintenance completed for ${recurringEvents.length} recurring events');

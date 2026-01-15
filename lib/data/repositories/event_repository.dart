@@ -46,6 +46,9 @@ class EventRepository {
   }
 
   /// 获取指定日期范围内的事件（不包括重复事件的展开）
+  ///
+  /// 对于单次事件：检查事件是否与查询范围有重叠
+  /// 对于重复事件：只加载 dtStart 早于查询范围结束的事件，在应用层展开实例
   Future<List<EventModel>> getEventsInRange(
     DateTime start,
     DateTime end, {
@@ -54,16 +57,30 @@ class EventRepository {
     final startTimestamp = start.toUtc().millisecondsSinceEpoch;
     final endTimestamp = end.toUtc().millisecondsSinceEpoch;
 
-    String where = '((${DbConstants.columnEventDtstart} >= ? AND ${DbConstants.columnEventDtstart} < ?) '
+    // 查询条件说明：
+    // 1. 单次事件：事件开始时间在范围内，或事件结束时间在范围内，或事件跨越整个范围
+    // 2. 重复事件：dtStart 必须早于查询范围的结束时间（实例展开在应用层处理）
+    //    这样可以避免加载已经完全结束的历史重复事件
+    String where = '('
+        // 单次事件的条件
+        '(${DbConstants.columnEventRrule} IS NULL AND ('
+        '(${DbConstants.columnEventDtstart} >= ? AND ${DbConstants.columnEventDtstart} < ?) '
         'OR (${DbConstants.columnEventDtend} > ? AND ${DbConstants.columnEventDtend} <= ?) '
-        'OR (${DbConstants.columnEventDtstart} <= ? AND ${DbConstants.columnEventDtend} >= ?) '
-        'OR ${DbConstants.columnEventRrule} IS NOT NULL)';
+        'OR (${DbConstants.columnEventDtstart} <= ? AND ${DbConstants.columnEventDtend} >= ?)'
+        '))'
+        ' OR '
+        // 重复事件的条件：dtStart 早于查询范围结束，且 rrule 不为空
+        '(${DbConstants.columnEventRrule} IS NOT NULL AND ${DbConstants.columnEventDtstart} < ?)'
+        ')';
     List<Object?> whereArgs = [
+      // 单次事件的参数
       startTimestamp,
       endTimestamp,
       startTimestamp,
       endTimestamp,
       startTimestamp,
+      endTimestamp,
+      // 重复事件的参数
       endTimestamp,
     ];
 
@@ -143,8 +160,13 @@ class EventRepository {
     await _databaseService.insert(DbConstants.tableEvents, event.toMap());
   }
 
-  /// 批量插入事件
+  /// 批量插入事件（事务安全）
+  ///
+  /// 使用事务确保原子性：要么全部成功，要么全部回滚。
+  /// 如果需要导入大量事件，建议分批处理以避免内存问题。
   Future<void> insertEvents(List<EventModel> events) async {
+    if (events.isEmpty) return;
+
     await _databaseService.insertBatch(
       DbConstants.tableEvents,
       events.map((e) => e.toMap()).toList(),

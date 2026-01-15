@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
 import '../../../data/models/event_model.dart';
 import '../../../core/utils/lunar_utils.dart';
+import '../../../core/utils/event_layout_helper.dart';
 import '../../widgets/calendar/draggable_event.dart';
 
 /// 日视图页面
@@ -325,8 +326,8 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
                   // 时间网格背景
                   _buildTimeGrid(colorScheme),
 
-                  // 事件块
-                  ...timedEvents.map((event) => _buildEventBlock(event, colorScheme)),
+                  // 事件块（使用布局辅助类处理重叠）
+                  ..._buildEventBlocks(timedEvents, colorScheme),
 
                   // 当前时间指示线
                   if (widget.viewModel.isToday(widget.viewModel.selectedDate))
@@ -465,21 +466,34 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
     );
   }
 
-  Widget _buildEventBlock(EventInstance event, ColorScheme colorScheme) {
-    return DraggableEventWidget(
-      event: event,
-      hourHeight: hourHeight,
-      leftOffset: 60,
-      rightOffset: 16,
-      showDetails: true,
-      onTap: () => _onEventTap(context, event),
-      onDragComplete: (newStart, newEnd) => _onEventDragComplete(
-        context,
-        event,
-        newStart,
-        newEnd,
-      ),
-    );
+  /// 构建所有事件块，处理重叠事件的布局
+  List<Widget> _buildEventBlocks(
+    List<EventInstance> events,
+    ColorScheme colorScheme,
+  ) {
+    if (events.isEmpty) return [];
+
+    // 使用布局辅助类计算重叠事件的位置
+    final layoutInfos = EventLayoutHelper.calculateLayout(events);
+
+    return layoutInfos.map((layoutInfo) {
+      return DraggableEventWidget(
+        event: layoutInfo.event,
+        hourHeight: hourHeight,
+        leftOffset: 60,
+        rightOffset: 16,
+        showDetails: true,
+        widthFraction: layoutInfo.widthFraction,
+        leftFraction: layoutInfo.leftFraction,
+        onTap: () => _onEventTap(context, layoutInfo.event),
+        onDragComplete: (newStart, newEnd) => _onEventDragComplete(
+          context,
+          layoutInfo.event,
+          newStart,
+          newEnd,
+        ),
+      );
+    }).toList();
   }
 
   Widget _buildCurrentTimeIndicator(ColorScheme colorScheme) {
