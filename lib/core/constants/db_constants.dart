@@ -4,7 +4,7 @@ class DbConstants {
 
   // ========== 数据库配置 ==========
   static const String databaseName = 'chrono_calendar.db';
-  static const int databaseVersion = 1;
+  static const int databaseVersion = 2;  // v2: 添加联合索引
 
   // ========== 表名 ==========
   static const String tableCalendars = 'calendars';
@@ -131,6 +131,16 @@ class DbConstants {
     CREATE INDEX idx_events_dtend ON $tableEvents($columnEventDtend)
   ''';
 
+  /// 联合索引：calendar_id + dtstart（优化按日历和日期范围查询）
+  static const String createEventsCalendarDtstartIndex = '''
+    CREATE INDEX idx_events_calendar_dtstart ON $tableEvents($columnEventCalendarId, $columnEventDtstart)
+  ''';
+
+  /// 联合索引：dtstart + dtend（优化日期范围重叠查询）
+  static const String createEventsDtstartDtendIndex = '''
+    CREATE INDEX idx_events_dtstart_dtend ON $tableEvents($columnEventDtstart, $columnEventDtend)
+  ''';
+
   /// 提醒表
   static const String createRemindersTable = '''
     CREATE TABLE $tableReminders (
@@ -241,6 +251,8 @@ class DbConstants {
     createEventsCalendarIdIndex,
     createEventsDtstartIndex,
     createEventsDtendIndex,
+    createEventsCalendarDtstartIndex,  // 联合索引：优化按日历+日期查询
+    createEventsDtstartDtendIndex,      // 联合索引：优化日期范围查询
     createRemindersTable,
     createRemindersEventUidIndex,
     createEventCacheTable,

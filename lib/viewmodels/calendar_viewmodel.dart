@@ -74,12 +74,18 @@ class CalendarViewModel extends ChangeNotifier {
 
   /// 选择日期
   void selectDate(DateTime date) {
-    _selectedDate = _normalizeDate(date);
+    final normalizedDate = _normalizeDate(date);
+    if (_selectedDate == normalizedDate) return;
+    _selectedDate = normalizedDate;
     notifyListeners();
   }
 
   /// 设置聚焦日期（切换月份时使用）
   void setFocusedDate(DateTime date) {
+    // 检查月份是否真的改变（对于月视图最重要）
+    if (_focusedDate.year == date.year && _focusedDate.month == date.month) {
+      return;
+    }
     _focusedDate = date;
     _updateDateRange();
     notifyListeners();
@@ -88,7 +94,16 @@ class CalendarViewModel extends ChangeNotifier {
   /// 跳转到今天
   void goToToday() {
     final today = DateTime.now();
-    _selectedDate = _normalizeDate(today);
+    final normalizedToday = _normalizeDate(today);
+
+    // 检查是否已经在今天
+    final alreadyOnToday = _selectedDate == normalizedToday &&
+        _focusedDate.year == today.year &&
+        _focusedDate.month == today.month;
+
+    if (alreadyOnToday) return;
+
+    _selectedDate = normalizedToday;
     _focusedDate = today;
     _updateDateRange();
     notifyListeners();
@@ -132,7 +147,16 @@ class CalendarViewModel extends ChangeNotifier {
 
   /// 跳转到指定日期
   void jumpToDate(DateTime date) {
-    _selectedDate = _normalizeDate(date);
+    final normalizedDate = _normalizeDate(date);
+
+    // 检查是否已经在该日期
+    final alreadyOnDate = _selectedDate == normalizedDate &&
+        _focusedDate.year == date.year &&
+        _focusedDate.month == date.month;
+
+    if (alreadyOnDate) return;
+
+    _selectedDate = normalizedDate;
     _focusedDate = date;
     _updateDateRange();
     notifyListeners();
@@ -187,7 +211,9 @@ class CalendarViewModel extends ChangeNotifier {
   }
 
   /// 加载当前范围内的事件
-  Future<void> _loadEventsForCurrentRange() async {
+  ///
+  /// [silent] 为 true 时不触发 notifyListeners（用于批量操作）
+  Future<void> _loadEventsForCurrentRange({bool silent = false}) async {
     if (_rangeStart == null || _rangeEnd == null) {
       final range = _calculateDateRange();
       _rangeStart = range.$1;
@@ -204,7 +230,10 @@ class CalendarViewModel extends ChangeNotifier {
 
       // 展开重复事件并按日期分组
       _eventsMap = _expandAndGroupEvents(events, _rangeStart!, _rangeEnd!);
-      notifyListeners();
+
+      if (!silent) {
+        notifyListeners();
+      }
     } catch (e) {
       debugPrint('加载事件失败: $e');
     }
@@ -264,14 +293,20 @@ class CalendarViewModel extends ChangeNotifier {
 
   /// 刷新事件数据
   Future<void> refreshEvents() async {
+    // 避免重复刷新
+    if (_isLoading) return;
+
     _isLoading = true;
     notifyListeners();
 
-    await _loadVisibleCalendars();
-    await _loadEventsForCurrentRange();
-
-    _isLoading = false;
-    notifyListeners();
+    try {
+      await _loadVisibleCalendars();
+      // 使用 silent 模式避免重复通知
+      await _loadEventsForCurrentRange(silent: true);
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   // ==================== 事件查询 ====================
@@ -301,7 +336,8 @@ class CalendarViewModel extends ChangeNotifier {
   /// 更新可见日历
   Future<void> updateVisibleCalendars() async {
     await _loadVisibleCalendars();
-    await _loadEventsForCurrentRange();
+    // 加载事件并触发通知
+    await _loadEventsForCurrentRange(silent: false);
   }
 
   // ==================== 事件拖拽更新 ====================

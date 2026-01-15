@@ -42,6 +42,14 @@ class DraggableEventWidget extends StatefulWidget {
   /// 时间吸附粒度（分钟）
   final int snapMinutes;
 
+  /// 事件宽度比例（0.0 - 1.0），用于处理重叠事件
+  /// 默认 1.0 表示占满可用宽度
+  final double widthFraction;
+
+  /// 事件左偏移比例（0.0 - 1.0），用于处理重叠事件
+  /// 默认 0.0 表示从最左边开始
+  final double leftFraction;
+
   const DraggableEventWidget({
     super.key,
     required this.event,
@@ -52,6 +60,8 @@ class DraggableEventWidget extends StatefulWidget {
     this.onTap,
     this.showDetails = true,
     this.snapMinutes = 15,
+    this.widthFraction = 1.0,
+    this.leftFraction = 0.0,
   });
 
   @override
@@ -142,9 +152,18 @@ class _DraggableEventWidgetState extends State<DraggableEventWidget>
     final colorScheme = theme.colorScheme;
     final eventColor = Color(widget.event.event.color ?? colorScheme.primary.value);
 
+    // 计算可用宽度区域
+    final availableWidth = MediaQuery.of(context).size.width -
+        widget.leftOffset -
+        widget.rightOffset;
+
+    // 根据 widthFraction 和 leftFraction 计算实际位置
+    final actualLeft = widget.leftOffset + (availableWidth * widget.leftFraction);
+    final actualWidth = availableWidth * widget.widthFraction;
+
     return Positioned(
-      left: widget.leftOffset,
-      right: widget.rightOffset,
+      left: actualLeft,
+      width: actualWidth,
       top: _isDragging ? _draggedTop : _eventTop,
       height: _isDragging ? _draggedHeight : _eventHeight,
       child: AnimatedBuilder(

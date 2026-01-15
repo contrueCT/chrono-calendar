@@ -44,3 +44,5 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 TECHNICAL_DOC.md
+ISSUES_AND_FIXES.md
+PROBLEMS_AND_SOLUTIONS.md

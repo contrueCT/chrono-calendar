@@ -9,20 +9,16 @@ import '../calendar/day_view_screen.dart';
 import '../../widgets/common/date_jump_dialog.dart';
 
 /// 首页 - 日历主页面
-class HomeScreen extends StatefulWidget {
+///
+/// 使用根级 MultiProvider 中的 CalendarViewModel，
+/// 不再创建局部实例，确保跨页面状态共享。
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => CalendarViewModel(),
-      child: const _HomeScreenContent(),
-    );
+    // 直接使用根级的 CalendarViewModel
+    return const _HomeScreenContent();
   }
 }
 
