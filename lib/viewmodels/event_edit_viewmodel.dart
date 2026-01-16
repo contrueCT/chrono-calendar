@@ -19,6 +19,9 @@ class EventEditViewModel extends ChangeNotifier {
   /// 原始事件（编辑模式下）
   final EventModel? originalEvent;
 
+  /// 是否已销毁
+  bool _isDisposed = false;
+
   // ==================== 表单状态 ====================
 
   /// 标题
@@ -150,10 +153,11 @@ class EventEditViewModel extends ChangeNotifier {
   /// 加载日历列表
   Future<void> _loadCalendars() async {
     _isLoading = true;
-    notifyListeners();
+    _safeNotifyListeners();
 
     try {
       _calendars = await _calendarRepository.getAllCalendars();
+      if (_isDisposed) return;
 
       // 如果没有选中的日历，选择默认日历
       if (_selectedCalendarId == null && _calendars.isNotEmpty) {
@@ -168,7 +172,7 @@ class EventEditViewModel extends ChangeNotifier {
       debugPrint('加载日历列表失败: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -176,11 +180,12 @@ class EventEditViewModel extends ChangeNotifier {
   Future<void> _loadReminders(String eventUid) async {
     try {
       final reminders = await _eventRepository.getRemindersForEvent(eventUid);
+      if (_isDisposed) return;
       _reminderMinutes = reminders.map((r) => r.triggerMinutes).toList();
       if (_reminderMinutes.isEmpty) {
         _reminderMinutes = [15]; // 默认
       }
-      notifyListeners();
+      _safeNotifyListeners();
     } catch (e) {
       debugPrint('加载提醒失败: $e');
     }
@@ -389,7 +394,7 @@ class EventEditViewModel extends ChangeNotifier {
 
     _isSaving = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotifyListeners();
 
     try {
       final event = _buildEvent();
@@ -399,9 +404,11 @@ class EventEditViewModel extends ChangeNotifier {
       } else {
         await _eventRepository.insertEvent(event);
       }
+      if (_isDisposed) return true;
 
       // 更新提醒到数据库
       final reminders = await _saveReminders(event.uid);
+      if (_isDisposed) return true;
 
       // 调度通知提醒
       await ReminderManager().updateRemindersForEvent(event, reminders);
@@ -413,7 +420,7 @@ class EventEditViewModel extends ChangeNotifier {
       return false;
     } finally {
       _isSaving = false;
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -524,6 +531,21 @@ class EventEditViewModel extends ChangeNotifier {
       _reminderMinutes = [reminderMinutes];
     }
 
-    notifyListeners();
+    _safeNotifyListeners();
+  }
+
+  // ==================== 生命周期 ====================
+
+  /// 安全地通知监听器（检查是否已销毁）
+  void _safeNotifyListeners() {
+    if (!_isDisposed) {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
   }
 }

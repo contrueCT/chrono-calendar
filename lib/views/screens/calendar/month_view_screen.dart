@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
 import '../../../data/models/event_model.dart';
@@ -349,12 +350,8 @@ class _SelectedDateEvents extends StatelessWidget {
   }
 
   void _onEventTap(BuildContext context, EventInstance event) {
-    // TODO: 导航到事件详情页
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('点击了事件: ${event.event.summary}'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
+    // 导航到事件详情页，传递实例日期用于重复事件
+    final instanceDateParam = event.instanceStart.toIso8601String();
+    context.push('/event/${event.event.uid}?instanceDate=$instanceDateParam');
   }
 }

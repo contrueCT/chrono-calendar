@@ -3,13 +3,17 @@ import 'package:go_router/go_router.dart';
 import '../../views/screens/home/home_screen.dart';
 import '../../views/screens/event/event_edit_screen.dart';
 import '../../views/screens/event/event_detail_screen.dart';
+import '../../views/screens/event/event_share_screen.dart';
 import '../../views/screens/calendar_manage/import_export_screen.dart';
 import '../../views/screens/calendar_manage/subscription_screen.dart';
+import '../../views/screens/calendar_manage/calendar_manage_screen.dart';
 import '../../views/screens/search/search_screen.dart';
+import '../../views/screens/settings/settings_screen.dart';
 import '../../views/screens/settings/llm_settings_screen.dart';
 import '../../views/screens/countdown/countdown_list_screen.dart';
 import '../../views/screens/countdown/countdown_edit_screen.dart';
 import '../../data/repositories/event_repository.dart';
+import '../../data/models/event_model.dart';
 
 /// 路由路径常量
 class RoutePaths {
@@ -22,6 +26,7 @@ class RoutePaths {
   static const String eventDetail = '/event/:uid';
   static const String eventEdit = '/event/edit';
   static const String eventCreate = '/event/create';
+  static const String eventShare = '/event/share';
   static const String search = '/search';
   static const String countdown = '/countdown';
   static const String countdownEdit = '/countdown/edit';
@@ -44,6 +49,7 @@ class RouteNames {
   static const String eventDetail = 'eventDetail';
   static const String eventEdit = 'eventEdit';
   static const String eventCreate = 'eventCreate';
+  static const String eventShare = 'eventShare';
   static const String search = 'search';
   static const String countdown = 'countdown';
   static const String countdownEdit = 'countdownEdit';
@@ -101,24 +107,6 @@ class AppRouter {
       builder: (context, state) => const HomeScreen(),
     ),
 
-    // 事件详情
-    GoRoute(
-      path: RoutePaths.eventDetail,
-      name: RouteNames.eventDetail,
-      builder: (context, state) {
-        final uid = state.pathParameters['uid'] ?? '';
-        final instanceDateStr = state.uri.queryParameters['instanceDate'];
-        DateTime? instanceDate;
-        if (instanceDateStr != null) {
-          instanceDate = DateTime.tryParse(instanceDateStr);
-        }
-        return EventDetailScreen(
-          eventUid: uid,
-          instanceDate: instanceDate,
-        );
-      },
-    ),
-
     // 事件编辑
     GoRoute(
       path: RoutePaths.eventEdit,
@@ -138,6 +126,48 @@ class AppRouter {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Scaffold(
                   body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              // 处理错误状态
+              if (snapshot.hasError) {
+                return Scaffold(
+                  appBar: AppBar(title: const Text('错误')),
+                  body: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                        const SizedBox(height: 16),
+                        Text('加载事件失败: ${snapshot.error}'),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => context.pop(),
+                          child: const Text('返回'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              // 处理数据为空的情况
+              if (snapshot.data == null) {
+                return Scaffold(
+                  appBar: AppBar(title: const Text('未找到')),
+                  body: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.event_busy, size: 64, color: Colors.grey),
+                        const SizedBox(height: 16),
+                        const Text('事件不存在或已删除'),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => context.pop(),
+                          child: const Text('返回'),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               }
               return EventEditScreen(
@@ -163,6 +193,59 @@ class AppRouter {
           initialDate = DateTime.tryParse(dateStr);
         }
         return EventEditScreen(initialDate: initialDate);
+      },
+    ),
+
+    // 事件分享
+    GoRoute(
+      path: RoutePaths.eventShare,
+      name: RouteNames.eventShare,
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        if (extra == null || extra['event'] == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('错误')),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text('缺少事件数据'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => context.pop(),
+                    child: const Text('返回'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        final event = extra['event'] as EventModel;
+        final instanceDate = extra['instanceDate'] as DateTime?;
+        return EventShareScreen(
+          event: event,
+          instanceDate: instanceDate,
+        );
+      },
+    ),
+
+    // 事件详情 (动态路由放在具体路由之后)
+    GoRoute(
+      path: RoutePaths.eventDetail,
+      name: RouteNames.eventDetail,
+      builder: (context, state) {
+        final uid = state.pathParameters['uid'] ?? '';
+        final instanceDateStr = state.uri.queryParameters['instanceDate'];
+        DateTime? instanceDate;
+        if (instanceDateStr != null) {
+          instanceDate = DateTime.tryParse(instanceDateStr);
+        }
+        return EventDetailScreen(
+          eventUid: uid,
+          instanceDate: instanceDate,
+        );
       },
     ),
 
@@ -199,7 +282,7 @@ class AppRouter {
     GoRoute(
       path: RoutePaths.calendarManage,
       name: RouteNames.calendarManage,
-      builder: (context, state) => const _PlaceholderScreen(title: '日历管理'),
+      builder: (context, state) => const CalendarManageScreen(),
     ),
 
     // 订阅管理
@@ -220,7 +303,7 @@ class AppRouter {
     GoRoute(
       path: RoutePaths.settings,
       name: RouteNames.settings,
-      builder: (context, state) => const _PlaceholderScreen(title: '设置'),
+      builder: (context, state) => const SettingsScreen(),
     ),
 
     // LLM 设置

@@ -315,19 +315,25 @@ class WeatherService {
     }
   }
 
+  /// 规范化坐标精度（保留2位小数）
+  double _normalizeCoordinate(double value) {
+    return double.parse(value.toStringAsFixed(2));
+  }
+
   /// 从缓存获取天气数据
   Future<List<WeatherData>?> _getCachedWeather(double latitude, double longitude) async {
     try {
-      final db = await _db.database;
+      final normalizedLat = _normalizeCoordinate(latitude);
+      final normalizedLon = _normalizeCoordinate(longitude);
       final today = DateTime.now();
       final todayStart = DateTime(today.year, today.month, today.day);
 
-      final maps = await db.query(
+      final maps = await _db.query(
         DbConstants.tableWeatherCache,
         where: 'latitude = ? AND longitude = ? AND date >= ? AND cached_at >= ?',
         whereArgs: [
-          latitude.toStringAsFixed(2),
-          longitude.toStringAsFixed(2),
+          normalizedLat,
+          normalizedLon,
           todayStart.millisecondsSinceEpoch,
           DateTime.now().subtract(Duration(hours: _cacheHours)).millisecondsSinceEpoch,
         ],
@@ -353,26 +359,24 @@ class WeatherService {
     List<WeatherData> weatherList,
   ) async {
     try {
-      final db = await _db.database;
+      final normalizedLat = _normalizeCoordinate(latitude);
+      final normalizedLon = _normalizeCoordinate(longitude);
       final now = DateTime.now().millisecondsSinceEpoch;
 
       // 删除旧缓存
-      await db.delete(
+      await _db.delete(
         DbConstants.tableWeatherCache,
         where: 'latitude = ? AND longitude = ?',
-        whereArgs: [
-          latitude.toStringAsFixed(2),
-          longitude.toStringAsFixed(2),
-        ],
+        whereArgs: [normalizedLat, normalizedLon],
       );
 
       // 插入新缓存
       for (final weather in weatherList) {
-        await db.insert(
+        await _db.insert(
           DbConstants.tableWeatherCache,
           {
-            'latitude': double.parse(latitude.toStringAsFixed(2)),
-            'longitude': double.parse(longitude.toStringAsFixed(2)),
+            'latitude': normalizedLat,
+            'longitude': normalizedLon,
             'date': weather.date.millisecondsSinceEpoch,
             'weather_data': jsonEncode(weather.toJson()),
             'cached_at': now,
@@ -387,8 +391,7 @@ class WeatherService {
   /// 清除所有缓存
   Future<void> clearCache() async {
     try {
-      final db = await _db.database;
-      await db.delete(DbConstants.tableWeatherCache);
+      await _db.delete(DbConstants.tableWeatherCache);
     } catch (e) {
       debugPrint('清除天气缓存失败: $e');
     }

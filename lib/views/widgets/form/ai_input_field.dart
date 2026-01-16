@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/router/app_router.dart';
 import '../../../data/models/llm_config_model.dart';
 import '../../../services/llm_service.dart';
 
@@ -358,7 +360,7 @@ class _AIInputFieldState extends State<AIInputField>
         action: SnackBarAction(
           label: '去设置',
           onPressed: () {
-            Navigator.of(context).pushNamed('/settings/llm');
+            context.push(RoutePaths.llmSettings);
           },
         ),
       ),

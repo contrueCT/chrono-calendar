@@ -131,7 +131,9 @@ class _EventEditScreenContentState extends State<_EventEditScreenContent> {
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
-    return SingleChildScrollView(
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -233,6 +235,7 @@ class _EventEditScreenContentState extends State<_EventEditScreenContent> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

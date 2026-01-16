@@ -85,6 +85,7 @@ class ReminderPicker extends StatelessWidget {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) => _ReminderOptionsSheet(
         options: availableOptions,
         onSelect: (minutes) {
@@ -157,9 +158,13 @@ class _ReminderOptionsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.6,
+      ),
+      padding: EdgeInsets.only(top: 16, bottom: bottomPadding + 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,24 +179,23 @@ class _ReminderOptionsSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           // 选项列表
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: options.length,
-            itemBuilder: (context, index) {
-              final minutes = options[index];
-              return ListTile(
-                leading: Icon(
-                  Icons.access_time,
-                  color: colorScheme.primary,
-                ),
-                title: Text(ReminderOptions.getDisplayText(minutes)),
-                onTap: () => onSelect(minutes),
-              );
-            },
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: options.length,
+              itemBuilder: (context, index) {
+                final minutes = options[index];
+                return ListTile(
+                  leading: Icon(
+                    Icons.access_time,
+                    color: colorScheme.primary,
+                  ),
+                  title: Text(ReminderOptions.getDisplayText(minutes)),
+                  onTap: () => onSelect(minutes),
+                );
+              },
+            ),
           ),
-          // 底部安全区域
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
         ],
       ),
     );
@@ -274,6 +278,7 @@ class SimpleReminderPicker extends StatelessWidget {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) => _SimpleReminderOptionsSheet(
         options: allOptions,
         selectedMinutes: selectedMinutes,
@@ -302,9 +307,13 @@ class _SimpleReminderOptionsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.6,
+      ),
+      padding: EdgeInsets.only(top: 16, bottom: bottomPadding + 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -319,38 +328,37 @@ class _SimpleReminderOptionsSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           // 选项列表
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: options.length,
-            itemBuilder: (context, index) {
-              final minutes = options[index];
-              final isSelected = minutes == selectedMinutes;
-              final displayText = minutes != null
-                  ? ReminderOptions.getDisplayText(minutes)
-                  : '无提醒';
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: options.length,
+              itemBuilder: (context, index) {
+                final minutes = options[index];
+                final isSelected = minutes == selectedMinutes;
+                final displayText = minutes != null
+                    ? ReminderOptions.getDisplayText(minutes)
+                    : '无提醒';
 
-              return ListTile(
-                leading: Icon(
-                  minutes != null ? Icons.access_time : Icons.notifications_off_outlined,
-                  color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
-                ),
-                title: Text(
-                  displayText,
-                  style: TextStyle(
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? colorScheme.primary : null,
+                return ListTile(
+                  leading: Icon(
+                    minutes != null ? Icons.access_time : Icons.notifications_off_outlined,
+                    color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
                   ),
-                ),
-                trailing: isSelected
-                    ? Icon(Icons.check, color: colorScheme.primary)
-                    : null,
-                onTap: () => onSelect(minutes),
-              );
-            },
+                  title: Text(
+                    displayText,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected ? colorScheme.primary : null,
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? Icon(Icons.check, color: colorScheme.primary)
+                      : null,
+                  onTap: () => onSelect(minutes),
+                );
+              },
+            ),
           ),
-          // 底部安全区域
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
         ],
       ),
     );

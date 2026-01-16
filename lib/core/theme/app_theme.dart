@@ -223,6 +223,13 @@ class AppTheme {
           TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
         },
       ),
+
+      // 文本选择主题
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: colorScheme.primary,
+        selectionColor: colorScheme.primary.withOpacity(0.3),
+        selectionHandleColor: colorScheme.primary,
+      ),
     );
   }
 
@@ -441,6 +448,13 @@ class AppTheme {
           TargetPlatform.android: CupertinoPageTransitionsBuilder(),
           TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
         },
+      ),
+
+      // 文本选择主题
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: colorScheme.primary,
+        selectionColor: colorScheme.primary.withOpacity(0.3),
+        selectionHandleColor: colorScheme.primary,
       ),
     );
   }

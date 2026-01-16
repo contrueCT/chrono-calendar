@@ -66,29 +66,43 @@ class _CountdownEditScreenState extends State<CountdownEditScreen> {
   Future<void> _loadCountdown() async {
     setState(() => _isLoading = true);
 
-    final countdown = await _countdownService.getCountdown(widget.countdownId!);
-    if (countdown != null) {
-      setState(() {
-        _existingCountdown = countdown;
-        _titleController.text = countdown.title;
-        _targetDate = countdown.targetDate;
-        _isLunar = countdown.isLunar;
-        _lunarMonth = countdown.lunarMonth;
-        _lunarDay = countdown.lunarDay;
-        _isLeapMonth = countdown.isLeapMonth;
-        _category = countdown.category ?? CountdownCategory.other;
-        _selectedColor = countdown.color ?? 0xFF2563EB;
-        _repeatYearly = countdown.repeatYearly;
-        _notifyEnabled = countdown.notifyEnabled;
-        _notifyDays = countdown.notifyDays ?? [0, 1, 7];
-      });
+    final result = await _countdownService.getCountdown(widget.countdownId!);
 
-      if (!_isLunar) {
-        _updateLunarFromSolar(_targetDate);
-      }
-    }
+    if (!mounted) return;
 
-    setState(() => _isLoading = false);
+    result.when(
+      success: (countdown) {
+        if (countdown != null) {
+          setState(() {
+            _existingCountdown = countdown;
+            _titleController.text = countdown.title;
+            _targetDate = countdown.targetDate;
+            _isLunar = countdown.isLunar;
+            _lunarMonth = countdown.lunarMonth;
+            _lunarDay = countdown.lunarDay;
+            _isLeapMonth = countdown.isLeapMonth;
+            _category = countdown.category ?? CountdownCategory.other;
+            _selectedColor = countdown.color ?? 0xFF2563EB;
+            _repeatYearly = countdown.repeatYearly;
+            _notifyEnabled = countdown.notifyEnabled;
+            _notifyDays = countdown.notifyDays ?? [0, 1, 7];
+            _isLoading = false;
+          });
+
+          if (!_isLunar) {
+            _updateLunarFromSolar(_targetDate);
+          }
+        } else {
+          setState(() => _isLoading = false);
+        }
+      },
+      failure: (error) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.userFriendlyMessage)),
+        );
+      },
+    );
   }
 
   void _updateLunarFromSolar(DateTime date) {
@@ -529,35 +543,36 @@ class _CountdownEditScreenState extends State<CountdownEditScreen> {
       createdAt: _existingCountdown?.createdAt ?? DateTime.now(),
     );
 
-    bool success;
-    if (_isEditMode) {
-      success = await _countdownService.updateCountdown(countdown);
-    } else {
-      final newCountdown = CountdownModel.create(
-        title: countdown.title,
-        targetDate: countdown.targetDate,
-        isLunar: countdown.isLunar,
-        lunarMonth: countdown.lunarMonth,
-        lunarDay: countdown.lunarDay,
-        isLeapMonth: countdown.isLeapMonth,
-        category: countdown.category,
-        color: countdown.color,
-        repeatYearly: countdown.repeatYearly,
-        notifyEnabled: countdown.notifyEnabled,
-        notifyDays: countdown.notifyDays,
-      );
-      success = await _countdownService.createCountdown(newCountdown);
-    }
+    final result = _isEditMode
+        ? await _countdownService.updateCountdown(countdown)
+        : await _countdownService.createCountdown(
+            CountdownModel.create(
+              title: countdown.title,
+              targetDate: countdown.targetDate,
+              isLunar: countdown.isLunar,
+              lunarMonth: countdown.lunarMonth,
+              lunarDay: countdown.lunarDay,
+              isLeapMonth: countdown.isLeapMonth,
+              category: countdown.category,
+              color: countdown.color,
+              repeatYearly: countdown.repeatYearly,
+              notifyEnabled: countdown.notifyEnabled,
+              notifyDays: countdown.notifyDays,
+            ),
+          );
+
+    if (!mounted) return;
 
     setState(() => _isLoading = false);
 
-    if (success && mounted) {
-      context.pop(true);
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('保存失败，请重试')),
-      );
-    }
+    result.when(
+      success: (_) => context.pop(true),
+      failure: (error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.userFriendlyMessage)),
+        );
+      },
+    );
   }
 
   Future<void> _showDeleteDialog() async {
@@ -583,10 +598,17 @@ class _CountdownEditScreenState extends State<CountdownEditScreen> {
     );
 
     if (confirmed == true) {
-      final success = await _countdownService.deleteCountdown(widget.countdownId!);
-      if (success && mounted) {
-        context.pop(true);
-      }
+      final result = await _countdownService.deleteCountdown(widget.countdownId!);
+      if (!mounted) return;
+
+      result.when(
+        success: (_) => context.pop(true),
+        failure: (error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error.userFriendlyMessage)),
+          );
+        },
+      );
     }
   }
 

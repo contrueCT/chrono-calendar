@@ -1,3 +1,5 @@
+import '../../core/constants/db_constants.dart';
+
 /// LLM 配置模型
 /// 用于存储 AI 服务的配置信息，支持 OpenAI 协议兼容的各种服务
 class LLMConfigModel {
@@ -22,24 +24,27 @@ class LLMConfigModel {
   /// 从数据库 Map 创建
   factory LLMConfigModel.fromMap(Map<String, dynamic> map) {
     return LLMConfigModel(
-      id: map['id'] as int?,
-      name: map['name'] as String,
-      baseUrl: map['base_url'] as String,
-      model: map['model'] as String,
-      isActive: (map['is_active'] as int) == 1,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['created_at'] as int),
+      id: map[DbConstants.columnLlmConfigId] as int?,
+      name: map[DbConstants.columnLlmConfigName] as String,
+      baseUrl: map[DbConstants.columnLlmConfigBaseUrl] as String,
+      model: map[DbConstants.columnLlmConfigModel] as String,
+      isActive: (map[DbConstants.columnLlmConfigIsActive] as int) == 1,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        map[DbConstants.columnLlmConfigCreatedAt] as int,
+        isUtc: true,
+      ).toLocal(),
     );
   }
 
   /// 转换为数据库 Map
   Map<String, dynamic> toMap() {
     return {
-      if (id != null) 'id': id,
-      'name': name,
-      'base_url': baseUrl,
-      'model': model,
-      'is_active': isActive ? 1 : 0,
-      'created_at': createdAt.millisecondsSinceEpoch,
+      if (id != null) DbConstants.columnLlmConfigId: id,
+      DbConstants.columnLlmConfigName: name,
+      DbConstants.columnLlmConfigBaseUrl: baseUrl,
+      DbConstants.columnLlmConfigModel: model,
+      DbConstants.columnLlmConfigIsActive: isActive ? 1 : 0,
+      DbConstants.columnLlmConfigCreatedAt: createdAt.toUtc().millisecondsSinceEpoch,
     };
   }
 
