@@ -198,16 +198,58 @@ class _HomeScreenContent extends StatelessWidget {
 
   Widget _buildFAB(BuildContext context, ColorScheme colorScheme) {
     final viewModel = context.read<CalendarViewModel>();
-    return FloatingActionButton(
-      onPressed: () {
-        // 使用选中的日期作为初始日期
-        final date = viewModel.selectedDate;
-        context.push('/event/create?date=${date.toIso8601String()}');
-      },
-      backgroundColor: colorScheme.primary,
-      foregroundColor: colorScheme.onPrimary,
-      elevation: 4,
-      child: const Icon(Icons.add),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [
+            colorScheme.primary,
+            colorScheme.tertiary,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.primary.withOpacity(0.4),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            // 使用选中的日期作为初始日期
+            final date = viewModel.selectedDate;
+            context.push('/event/create?date=${date.toIso8601String()}');
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.auto_awesome,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  '创建事件',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -263,13 +305,7 @@ class _HomeScreenContent extends StatelessWidget {
                 label: '倒计时',
                 isSelected: false,
                 onTap: () {
-                  // TODO: 导航到倒计时页面
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('倒计时功能将在后续版本实现'),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
+                  context.push(RoutePaths.countdown);
                 },
                 colorScheme: colorScheme,
               ),

@@ -128,15 +128,21 @@ class EventModel {
 
   /// 从数据库 Map 创建
   factory EventModel.fromMap(Map<String, dynamic> map) {
-    // 解析排除日期
+    // 解析排除日期（带异常处理）
     List<DateTime>? exDates;
     if (map[DbConstants.columnEventExdates] != null) {
       final exdatesJson = map[DbConstants.columnEventExdates] as String;
       if (exdatesJson.isNotEmpty) {
-        final List<dynamic> exdatesList = jsonDecode(exdatesJson);
-        exDates = exdatesList
-            .map((e) => DateTime.fromMillisecondsSinceEpoch(e as int, isUtc: true).toLocal())
-            .toList();
+        try {
+          final List<dynamic> exdatesList = jsonDecode(exdatesJson);
+          exDates = exdatesList
+              .whereType<int>()  // 安全过滤，只保留 int 类型
+              .map((e) => DateTime.fromMillisecondsSinceEpoch(e, isUtc: true).toLocal())
+              .toList();
+        } catch (e) {
+          // JSON 解析失败时忽略排除日期，而不是崩溃
+          exDates = null;
+        }
       }
     }
 

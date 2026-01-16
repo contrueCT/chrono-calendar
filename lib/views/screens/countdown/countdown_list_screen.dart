@@ -17,6 +17,7 @@ class _CountdownListScreenState extends State<CountdownListScreen> {
   final CountdownService _countdownService = CountdownService();
   List<CountdownModel> _countdowns = [];
   bool _isLoading = true;
+  String? _errorMessage;
   CountdownCategory? _selectedCategory;
 
   @override
@@ -26,22 +27,33 @@ class _CountdownListScreenState extends State<CountdownListScreen> {
   }
 
   Future<void> _loadCountdowns() async {
-    setState(() => _isLoading = true);
-
-    List<CountdownModel> countdowns;
-    if (_selectedCategory != null) {
-      countdowns = await _countdownService.getCountdownsByCategory(_selectedCategory!);
-    } else {
-      countdowns = await _countdownService.getAllCountdowns();
-    }
-
-    // 按剩余天数排序
-    countdowns.sort((a, b) => a.getDaysRemaining().compareTo(b.getDaysRemaining()));
-
     setState(() {
-      _countdowns = countdowns;
-      _isLoading = false;
+      _isLoading = true;
+      _errorMessage = null;
     });
+
+    final result = _selectedCategory != null
+        ? await _countdownService.getCountdownsByCategory(_selectedCategory!)
+        : await _countdownService.getAllCountdowns();
+
+    if (!mounted) return;
+
+    result.when(
+      success: (countdowns) {
+        // 按剩余天数排序
+        countdowns.sort((a, b) => a.getDaysRemaining().compareTo(b.getDaysRemaining()));
+        setState(() {
+          _countdowns = countdowns;
+          _isLoading = false;
+        });
+      },
+      failure: (error) {
+        setState(() {
+          _errorMessage = error.userFriendlyMessage;
+          _isLoading = false;
+        });
+      },
+    );
   }
 
   @override
@@ -75,9 +87,11 @@ class _CountdownListScreenState extends State<CountdownListScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _countdowns.isEmpty
-              ? _buildEmptyState(colorScheme)
-              : _buildCountdownList(colorScheme),
+          : _errorMessage != null
+              ? _buildErrorState(colorScheme)
+              : _countdowns.isEmpty
+                  ? _buildEmptyState(colorScheme)
+                  : _buildCountdownList(colorScheme),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await context.push<bool>('/countdown/create');
@@ -87,6 +101,36 @@ class _CountdownListScreenState extends State<CountdownListScreen> {
         },
         tooltip: '添加倒计时',
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(ColorScheme colorScheme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 64,
+            color: colorScheme.error,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _errorMessage!,
+            style: TextStyle(
+              fontSize: 16,
+              color: colorScheme.onSurface,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _loadCountdowns,
+            icon: const Icon(Icons.refresh),
+            label: const Text('重试'),
+          ),
+        ],
       ),
     );
   }

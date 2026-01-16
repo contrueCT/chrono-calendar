@@ -17,6 +17,13 @@ class CalendarViewModel extends ChangeNotifier {
   final EventRepository _eventRepository;
   final CalendarRepository _calendarRepository;
 
+  /// 是否已销毁
+  bool _isDisposed = false;
+
+  /// 初始化错误信息
+  String? _initError;
+  String? get initError => _initError;
+
   CalendarViewModel({
     EventRepository? eventRepository,
     CalendarRepository? calendarRepository,
@@ -58,10 +65,31 @@ class CalendarViewModel extends ChangeNotifier {
   // ==================== 初始化 ====================
 
   Future<void> _init() async {
-    await _loadVisibleCalendars();
-    await _loadEventsForCurrentRange();
-    _isLoading = false;
-    notifyListeners();
+    try {
+      await _loadVisibleCalendars();
+      if (_isDisposed) return;
+      await _loadEventsForCurrentRange();
+      if (_isDisposed) return;
+    } catch (e) {
+      _initError = '初始化日历失败: $e';
+      debugPrint(_initError);
+    } finally {
+      _isLoading = false;
+      _safeNotifyListeners();
+    }
+  }
+
+  /// 安全地通知监听器（检查是否已销毁）
+  void _safeNotifyListeners() {
+    if (!_isDisposed) {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
   }
 
   /// 加载可见日历列表
@@ -77,7 +105,7 @@ class CalendarViewModel extends ChangeNotifier {
     final normalizedDate = _normalizeDate(date);
     if (_selectedDate == normalizedDate) return;
     _selectedDate = normalizedDate;
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   /// 设置聚焦日期（切换月份时使用）
@@ -88,7 +116,7 @@ class CalendarViewModel extends ChangeNotifier {
     }
     _focusedDate = date;
     _updateDateRange();
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   /// 跳转到今天
@@ -106,7 +134,7 @@ class CalendarViewModel extends ChangeNotifier {
     _selectedDate = normalizedToday;
     _focusedDate = today;
     _updateDateRange();
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   /// 切换到上一个周期（月/周/日）
@@ -124,7 +152,7 @@ class CalendarViewModel extends ChangeNotifier {
         break;
     }
     _updateDateRange();
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   /// 切换到下一个周期（月/周/日）
@@ -142,7 +170,7 @@ class CalendarViewModel extends ChangeNotifier {
         break;
     }
     _updateDateRange();
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   /// 跳转到指定日期
@@ -159,7 +187,7 @@ class CalendarViewModel extends ChangeNotifier {
     _selectedDate = normalizedDate;
     _focusedDate = date;
     _updateDateRange();
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   // ==================== 视图模式 ====================
@@ -169,7 +197,7 @@ class CalendarViewModel extends ChangeNotifier {
     if (_viewMode != mode) {
       _viewMode = mode;
       _updateDateRange();
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -232,7 +260,7 @@ class CalendarViewModel extends ChangeNotifier {
       _eventsMap = _expandAndGroupEvents(events, _rangeStart!, _rangeEnd!);
 
       if (!silent) {
-        notifyListeners();
+        _safeNotifyListeners();
       }
     } catch (e) {
       debugPrint('加载事件失败: $e');
@@ -294,18 +322,19 @@ class CalendarViewModel extends ChangeNotifier {
   /// 刷新事件数据
   Future<void> refreshEvents() async {
     // 避免重复刷新
-    if (_isLoading) return;
+    if (_isLoading || _isDisposed) return;
 
     _isLoading = true;
-    notifyListeners();
+    _safeNotifyListeners();
 
     try {
       await _loadVisibleCalendars();
+      if (_isDisposed) return;
       // 使用 silent 模式避免重复通知
       await _loadEventsForCurrentRange(silent: true);
     } finally {
       _isLoading = false;
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 

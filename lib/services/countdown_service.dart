@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import '../data/models/countdown_model.dart';
 import '../core/constants/db_constants.dart';
+import '../core/errors/result.dart';
+import '../core/errors/app_exception.dart';
 import 'database_service.dart';
 import 'notification_service.dart';
 
@@ -14,22 +16,25 @@ class CountdownService {
   final NotificationService _notificationService = NotificationService();
 
   /// 获取所有倒计时
-  Future<List<CountdownModel>> getAllCountdowns() async {
+  Future<Result<List<CountdownModel>>> getAllCountdowns() async {
     try {
       final db = await _db.database;
       final maps = await db.query(
         DbConstants.tableCountdowns,
         orderBy: '${DbConstants.columnCountdownTargetDate} ASC',
       );
-      return maps.map((map) => CountdownModel.fromMap(map)).toList();
-    } catch (e) {
+      final countdowns = maps.map((map) => CountdownModel.fromMap(map)).toList();
+      return Result.success(countdowns);
+    } catch (e, s) {
       debugPrint('获取倒计时列表失败: $e');
-      return [];
+      return Result.failure(
+        DatabaseException.queryFailed(DbConstants.tableCountdowns, e, s),
+      );
     }
   }
 
   /// 获取单个倒计时
-  Future<CountdownModel?> getCountdown(String id) async {
+  Future<Result<CountdownModel?>> getCountdown(String id) async {
     try {
       final db = await _db.database;
       final maps = await db.query(
@@ -38,26 +43,30 @@ class CountdownService {
         whereArgs: [id],
         limit: 1,
       );
-      if (maps.isEmpty) return null;
-      return CountdownModel.fromMap(maps.first);
-    } catch (e) {
+      if (maps.isEmpty) return Result.success(null);
+      return Result.success(CountdownModel.fromMap(maps.first));
+    } catch (e, s) {
       debugPrint('获取倒计时失败: $e');
-      return null;
+      return Result.failure(
+        DatabaseException.queryFailed(DbConstants.tableCountdowns, e, s),
+      );
     }
   }
 
   /// 获取即将到来的倒计时（未来30天内）
-  Future<List<CountdownModel>> getUpcomingCountdowns({int days = 30}) async {
-    final allCountdowns = await getAllCountdowns();
-    return allCountdowns.where((countdown) {
-      final remaining = countdown.getDaysRemaining();
-      return remaining >= 0 && remaining <= days;
-    }).toList()
-      ..sort((a, b) => a.getDaysRemaining().compareTo(b.getDaysRemaining()));
+  Future<Result<List<CountdownModel>>> getUpcomingCountdowns({int days = 30}) async {
+    final result = await getAllCountdowns();
+    return result.map((allCountdowns) {
+      return allCountdowns.where((countdown) {
+        final remaining = countdown.getDaysRemaining();
+        return remaining >= 0 && remaining <= days;
+      }).toList()
+        ..sort((a, b) => a.getDaysRemaining().compareTo(b.getDaysRemaining()));
+    });
   }
 
   /// 按分类获取倒计时
-  Future<List<CountdownModel>> getCountdownsByCategory(CountdownCategory category) async {
+  Future<Result<List<CountdownModel>>> getCountdownsByCategory(CountdownCategory category) async {
     try {
       final db = await _db.database;
       final maps = await db.query(
@@ -66,15 +75,18 @@ class CountdownService {
         whereArgs: [category.name],
         orderBy: '${DbConstants.columnCountdownTargetDate} ASC',
       );
-      return maps.map((map) => CountdownModel.fromMap(map)).toList();
-    } catch (e) {
+      final countdowns = maps.map((map) => CountdownModel.fromMap(map)).toList();
+      return Result.success(countdowns);
+    } catch (e, s) {
       debugPrint('按分类获取倒计时失败: $e');
-      return [];
+      return Result.failure(
+        DatabaseException.queryFailed(DbConstants.tableCountdowns, e, s),
+      );
     }
   }
 
   /// 创建倒计时
-  Future<bool> createCountdown(CountdownModel countdown) async {
+  Future<Result<void>> createCountdown(CountdownModel countdown) async {
     try {
       final db = await _db.database;
       await db.insert(DbConstants.tableCountdowns, countdown.toMap());
@@ -84,15 +96,17 @@ class CountdownService {
         await _scheduleNotifications(countdown);
       }
 
-      return true;
-    } catch (e) {
+      return Result.success(null);
+    } catch (e, s) {
       debugPrint('创建倒计时失败: $e');
-      return false;
+      return Result.failure(
+        DatabaseException.insertFailed(DbConstants.tableCountdowns, e, s),
+      );
     }
   }
 
   /// 更新倒计时
-  Future<bool> updateCountdown(CountdownModel countdown) async {
+  Future<Result<void>> updateCountdown(CountdownModel countdown) async {
     try {
       final db = await _db.database;
       await db.update(
@@ -108,15 +122,17 @@ class CountdownService {
         await _scheduleNotifications(countdown);
       }
 
-      return true;
-    } catch (e) {
+      return Result.success(null);
+    } catch (e, s) {
       debugPrint('更新倒计时失败: $e');
-      return false;
+      return Result.failure(
+        DatabaseException.updateFailed(DbConstants.tableCountdowns, e, s),
+      );
     }
   }
 
   /// 删除倒计时
-  Future<bool> deleteCountdown(String id) async {
+  Future<Result<void>> deleteCountdown(String id) async {
     try {
       final db = await _db.database;
       await db.delete(
@@ -128,10 +144,12 @@ class CountdownService {
       // 取消提醒
       await _cancelNotifications(id);
 
-      return true;
-    } catch (e) {
+      return Result.success(null);
+    } catch (e, s) {
       debugPrint('删除倒计时失败: $e');
-      return false;
+      return Result.failure(
+        DatabaseException.deleteFailed(DbConstants.tableCountdowns, e, s),
+      );
     }
   }
 
@@ -208,8 +226,10 @@ class CountdownService {
 
   /// 刷新所有倒计时的提醒（用于每年重复的倒计时）
   Future<void> refreshAllNotifications() async {
-    final countdowns = await getAllCountdowns();
-    for (final countdown in countdowns) {
+    final result = await getAllCountdowns();
+    if (result.isFailure) return;
+
+    for (final countdown in result.valueOrNull!) {
       if (countdown.notifyEnabled && countdown.repeatYearly) {
         await _cancelNotifications(countdown.id);
         await _scheduleNotifications(countdown);
@@ -218,27 +238,31 @@ class CountdownService {
   }
 
   /// 获取今日倒计时
-  Future<List<CountdownModel>> getTodayCountdowns() async {
-    final allCountdowns = await getAllCountdowns();
-    return allCountdowns.where((countdown) {
-      return countdown.getDaysRemaining() == 0;
-    }).toList();
+  Future<Result<List<CountdownModel>>> getTodayCountdowns() async {
+    final result = await getAllCountdowns();
+    return result.map((allCountdowns) {
+      return allCountdowns.where((countdown) {
+        return countdown.getDaysRemaining() == 0;
+      }).toList();
+    });
   }
 
   /// 获取统计信息
-  Future<Map<String, int>> getStatistics() async {
-    final allCountdowns = await getAllCountdowns();
-    final today = allCountdowns.where((c) => c.getDaysRemaining() == 0).length;
-    final upcoming = allCountdowns.where((c) {
-      final days = c.getDaysRemaining();
-      return days > 0 && days <= 7;
-    }).length;
-    final total = allCountdowns.length;
+  Future<Result<Map<String, int>>> getStatistics() async {
+    final result = await getAllCountdowns();
+    return result.map((allCountdowns) {
+      final today = allCountdowns.where((c) => c.getDaysRemaining() == 0).length;
+      final upcoming = allCountdowns.where((c) {
+        final days = c.getDaysRemaining();
+        return days > 0 && days <= 7;
+      }).length;
+      final total = allCountdowns.length;
 
-    return {
-      'today': today,
-      'upcoming': upcoming,
-      'total': total,
-    };
+      return {
+        'today': today,
+        'upcoming': upcoming,
+        'total': total,
+      };
+    });
   }
 }

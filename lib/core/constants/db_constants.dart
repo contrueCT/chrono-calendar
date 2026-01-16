@@ -200,6 +200,14 @@ class DbConstants {
     CREATE INDEX idx_countdowns_target_date ON $tableCountdowns($columnCountdownTargetDate)
   ''';
 
+  // ========== LLM 配置表字段 ==========
+  static const String columnLlmConfigId = 'id';
+  static const String columnLlmConfigName = 'name';
+  static const String columnLlmConfigBaseUrl = 'base_url';
+  static const String columnLlmConfigModel = 'model';
+  static const String columnLlmConfigIsActive = 'is_active';
+  static const String columnLlmConfigCreatedAt = 'created_at';
+
   /// 搜索历史表
   static const String createSearchHistoryTable = '''
     CREATE TABLE $tableSearchHistory (
@@ -235,12 +243,12 @@ class DbConstants {
   /// 注意：API Key 使用 flutter_secure_storage 单独存储，不在数据库中
   static const String createLlmConfigTable = '''
     CREATE TABLE $tableLlmConfig (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      base_url TEXT NOT NULL,
-      model TEXT NOT NULL,
-      is_active INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL
+      $columnLlmConfigId INTEGER PRIMARY KEY AUTOINCREMENT,
+      $columnLlmConfigName TEXT NOT NULL,
+      $columnLlmConfigBaseUrl TEXT NOT NULL,
+      $columnLlmConfigModel TEXT NOT NULL,
+      $columnLlmConfigIsActive INTEGER NOT NULL DEFAULT 0,
+      $columnLlmConfigCreatedAt INTEGER NOT NULL
     )
   ''';
 

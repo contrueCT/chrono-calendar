@@ -112,7 +112,8 @@ class CountdownModel {
       title: map[DbConstants.columnCountdownTitle] as String,
       targetDate: DateTime.fromMillisecondsSinceEpoch(
         map[DbConstants.columnCountdownTargetDate] as int,
-      ),
+        isUtc: true,
+      ).toLocal(),
       isLunar: (map[DbConstants.columnCountdownIsLunar] as int) == 1,
       lunarMonth: map[DbConstants.columnCountdownLunarMonth] as int?,
       lunarDay: map[DbConstants.columnCountdownLunarDay] as int?,
@@ -125,7 +126,8 @@ class CountdownModel {
       notifyDays: _parseNotifyDays(map[DbConstants.columnCountdownNotifyDays] as String?),
       createdAt: DateTime.fromMillisecondsSinceEpoch(
         map[DbConstants.columnCountdownCreatedAt] as int,
-      ),
+        isUtc: true,
+      ).toLocal(),
     );
   }
 
@@ -134,7 +136,7 @@ class CountdownModel {
     return {
       DbConstants.columnCountdownId: id,
       DbConstants.columnCountdownTitle: title,
-      DbConstants.columnCountdownTargetDate: targetDate.millisecondsSinceEpoch,
+      DbConstants.columnCountdownTargetDate: targetDate.toUtc().millisecondsSinceEpoch,
       DbConstants.columnCountdownIsLunar: isLunar ? 1 : 0,
       DbConstants.columnCountdownLunarMonth: lunarMonth,
       DbConstants.columnCountdownLunarDay: lunarDay,
@@ -145,25 +147,34 @@ class CountdownModel {
       DbConstants.columnCountdownRepeatYearly: repeatYearly ? 1 : 0,
       DbConstants.columnCountdownNotifyEnabled: notifyEnabled ? 1 : 0,
       DbConstants.columnCountdownNotifyDays: notifyDays?.join(','),
-      DbConstants.columnCountdownCreatedAt: createdAt.millisecondsSinceEpoch,
+      DbConstants.columnCountdownCreatedAt: createdAt.toUtc().millisecondsSinceEpoch,
     };
   }
 
   /// 复制并修改
+  ///
+  /// 对于可空字段 (lunarMonth, lunarDay, category, color, icon, notifyDays)，
+  /// 使用对应的 clear* 参数可以将字段显式设为 null。
   CountdownModel copyWith({
     String? id,
     String? title,
     DateTime? targetDate,
     bool? isLunar,
     int? lunarMonth,
+    bool clearLunarMonth = false,
     int? lunarDay,
+    bool clearLunarDay = false,
     bool? isLeapMonth,
     CountdownCategory? category,
+    bool clearCategory = false,
     int? color,
+    bool clearColor = false,
     String? icon,
+    bool clearIcon = false,
     bool? repeatYearly,
     bool? notifyEnabled,
     List<int>? notifyDays,
+    bool clearNotifyDays = false,
     DateTime? createdAt,
   }) {
     return CountdownModel(
@@ -171,15 +182,15 @@ class CountdownModel {
       title: title ?? this.title,
       targetDate: targetDate ?? this.targetDate,
       isLunar: isLunar ?? this.isLunar,
-      lunarMonth: lunarMonth ?? this.lunarMonth,
-      lunarDay: lunarDay ?? this.lunarDay,
+      lunarMonth: clearLunarMonth ? null : (lunarMonth ?? this.lunarMonth),
+      lunarDay: clearLunarDay ? null : (lunarDay ?? this.lunarDay),
       isLeapMonth: isLeapMonth ?? this.isLeapMonth,
-      category: category ?? this.category,
-      color: color ?? this.color,
-      icon: icon ?? this.icon,
+      category: clearCategory ? null : (category ?? this.category),
+      color: clearColor ? null : (color ?? this.color),
+      icon: clearIcon ? null : (icon ?? this.icon),
       repeatYearly: repeatYearly ?? this.repeatYearly,
       notifyEnabled: notifyEnabled ?? this.notifyEnabled,
-      notifyDays: notifyDays ?? this.notifyDays,
+      notifyDays: clearNotifyDays ? null : (notifyDays ?? this.notifyDays),
       createdAt: createdAt ?? this.createdAt,
     );
   }

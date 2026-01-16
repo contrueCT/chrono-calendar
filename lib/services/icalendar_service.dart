@@ -119,11 +119,17 @@ class ICalendarService {
     bool isAllDay = false;
     final dtStartData = component['dtstart'];
     if (dtStartData is IcsDateTime) {
-      isAllDay = dtStartData.toDateTime()?.hour == 0 &&
-          dtStartData.toDateTime()?.minute == 0 &&
-          (component['dtend'] == null ||
-              (component['dtend'] is IcsDateTime &&
-                  (component['dtend'] as IcsDateTime).toDateTime()?.hour == 0));
+      final startDateTime = dtStartData.toDateTime();
+      if (startDateTime != null) {
+        final dtEndData = component['dtend'];
+        DateTime? endDateTime;
+        if (dtEndData is IcsDateTime) {
+          endDateTime = dtEndData.toDateTime();
+        }
+        isAllDay = startDateTime.hour == 0 &&
+            startDateTime.minute == 0 &&
+            (dtEndData == null || (endDateTime != null && endDateTime.hour == 0));
+      }
     }
 
     // 解析重复规则

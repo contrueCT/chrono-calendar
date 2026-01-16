@@ -9,7 +9,6 @@ import '../../../data/repositories/calendar_repository.dart';
 import '../../../data/models/calendar_model.dart';
 import '../../../core/utils/lunar_utils.dart';
 import '../../../services/reminder_manager.dart';
-import 'event_share_screen.dart';
 
 /// 事件详情页面
 class EventDetailScreen extends StatefulWidget {
@@ -53,6 +52,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
     try {
       final event = await _eventRepository.getEventByUid(widget.eventUid);
+      if (!mounted) return;
+
       if (event == null) {
         setState(() {
           _errorMessage = '事件不存在';
@@ -64,6 +65,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       final calendar = await _calendarRepository.getCalendarById(event.calendarId);
       final reminders = await _eventRepository.getRemindersForEvent(event.uid);
 
+      if (!mounted) return;
+
       setState(() {
         _event = event;
         _calendar = calendar;
@@ -71,6 +74,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = '加载事件失败';
         _isLoading = false;
@@ -471,14 +475,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   void _handleShare(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EventShareScreen(
-          event: _event!,
-          instanceDate: widget.instanceDate,
-        ),
-      ),
+    context.push(
+      '/event/share',
+      extra: {
+        'event': _event!,
+        'instanceDate': widget.instanceDate,
+      },
     );
   }
 

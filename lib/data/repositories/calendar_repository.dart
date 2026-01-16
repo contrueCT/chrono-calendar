@@ -97,7 +97,14 @@ class CalendarRepository {
   }
 
   /// 设置默认日历
-  Future<void> setDefaultCalendar(String id) async {
+  /// 如果指定 ID 的日历不存在，则不做任何修改
+  Future<bool> setDefaultCalendar(String id) async {
+    // 先验证日历是否存在
+    final calendar = await getCalendarById(id);
+    if (calendar == null) {
+      return false;
+    }
+
     await _databaseService.transaction((txn) async {
       // 先取消所有日历的默认状态
       await txn.update(
@@ -112,6 +119,7 @@ class CalendarRepository {
         whereArgs: [id],
       );
     });
+    return true;
   }
 
   /// 切换日历可见性
