@@ -12,8 +12,12 @@ import '../../views/screens/settings/settings_screen.dart';
 import '../../views/screens/settings/llm_settings_screen.dart';
 import '../../views/screens/countdown/countdown_list_screen.dart';
 import '../../views/screens/countdown/countdown_edit_screen.dart';
+import '../../views/screens/schedule/schedule_create_screen.dart';
+import '../../views/screens/todo/todo_list_screen.dart';
+import '../../views/screens/todo/todo_edit_screen.dart';
 import '../../data/repositories/event_repository.dart';
 import '../../data/models/event_model.dart';
+import '../../data/models/schedule_type.dart';
 
 /// 路由路径常量
 class RoutePaths {
@@ -27,9 +31,12 @@ class RoutePaths {
   static const String eventEdit = '/event/edit';
   static const String eventCreate = '/event/create';
   static const String eventShare = '/event/share';
+  static const String scheduleCreate = '/schedule/create';
   static const String search = '/search';
   static const String countdown = '/countdown';
   static const String countdownEdit = '/countdown/edit';
+  static const String todo = '/todo';
+  static const String todoEdit = '/todo/edit';
   static const String calendarManage = '/calendar-manage';
   static const String subscription = '/subscription';
   static const String importExport = '/import-export';
@@ -50,9 +57,12 @@ class RouteNames {
   static const String eventEdit = 'eventEdit';
   static const String eventCreate = 'eventCreate';
   static const String eventShare = 'eventShare';
+  static const String scheduleCreate = 'scheduleCreate';
   static const String search = 'search';
   static const String countdown = 'countdown';
   static const String countdownEdit = 'countdownEdit';
+  static const String todo = 'todo';
+  static const String todoEdit = 'todoEdit';
   static const String calendarManage = 'calendarManage';
   static const String subscription = 'subscription';
   static const String importExport = 'importExport';
@@ -196,6 +206,28 @@ class AppRouter {
       },
     ),
 
+    // 统一日程创建
+    GoRoute(
+      path: RoutePaths.scheduleCreate,
+      name: RouteNames.scheduleCreate,
+      builder: (context, state) {
+        final dateStr = state.uri.queryParameters['date'];
+        final typeStr = state.uri.queryParameters['type'];
+        DateTime? initialDate;
+        ScheduleType? initialType;
+        if (dateStr != null) {
+          initialDate = DateTime.tryParse(dateStr);
+        }
+        if (typeStr != null) {
+          initialType = ScheduleType.fromString(typeStr);
+        }
+        return ScheduleCreateScreen(
+          initialDate: initialDate,
+          initialType: initialType,
+        );
+      },
+    ),
+
     // 事件分享
     GoRoute(
       path: RoutePaths.eventShare,
@@ -275,6 +307,35 @@ class AppRouter {
       builder: (context, state) {
         final id = state.pathParameters['id'];
         return CountdownEditScreen(countdownId: id);
+      },
+    ),
+
+    // 待办列表
+    GoRoute(
+      path: RoutePaths.todo,
+      name: RouteNames.todo,
+      builder: (context, state) => const TodoListScreen(),
+    ),
+
+    // 待办创建
+    GoRoute(
+      path: '/todo/create',
+      builder: (context, state) {
+        final dateStr = state.uri.queryParameters['date'];
+        DateTime? initialDate;
+        if (dateStr != null) {
+          initialDate = DateTime.tryParse(dateStr);
+        }
+        return TodoEditScreen(initialDate: initialDate);
+      },
+    ),
+
+    // 待办编辑/详情
+    GoRoute(
+      path: '/todo/:id',
+      builder: (context, state) {
+        final id = state.pathParameters['id'];
+        return TodoEditScreen(todoId: id);
       },
     ),
 
@@ -420,6 +481,22 @@ extension RouterExtension on BuildContext {
     }
   }
 
+  /// 跳转到统一日程创建
+  void goScheduleCreate({DateTime? date, ScheduleType? type}) {
+    final params = <String>[];
+    if (date != null) {
+      params.add('date=${date.toIso8601String()}');
+    }
+    if (type != null) {
+      params.add('type=${type.name}');
+    }
+    if (params.isNotEmpty) {
+      go('${RoutePaths.scheduleCreate}?${params.join('&')}');
+    } else {
+      go(RoutePaths.scheduleCreate);
+    }
+  }
+
   /// 跳转到搜索
   void goSearch() => go(RoutePaths.search);
 
@@ -432,6 +509,20 @@ extension RouterExtension on BuildContext {
       go('${RoutePaths.countdownEdit}?id=$id');
     } else {
       go(RoutePaths.countdownEdit);
+    }
+  }
+
+  /// 跳转到待办列表
+  void goTodo() => go(RoutePaths.todo);
+
+  /// 跳转到待办编辑
+  void goTodoEdit({String? id, DateTime? date}) {
+    if (id != null) {
+      go('/todo/$id');
+    } else if (date != null) {
+      go('/todo/create?date=${date.toIso8601String()}');
+    } else {
+      go('/todo/create');
     }
   }
 

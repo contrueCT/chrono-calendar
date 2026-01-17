@@ -138,6 +138,181 @@ class ParsedEventDraft {
   }
 }
 
+/// AI 解析后的倒计时草稿
+class ParsedCountdownDraft {
+  final String title;
+  final DateTime targetDate;
+  final String? category;
+  final bool repeatYearly;
+  final bool isLunar;
+  final int? lunarMonth;
+  final int? lunarDay;
+
+  const ParsedCountdownDraft({
+    required this.title,
+    required this.targetDate,
+    this.category,
+    this.repeatYearly = false,
+    this.isLunar = false,
+    this.lunarMonth,
+    this.lunarDay,
+  });
+
+  /// 从 LLM 返回的 JSON 创建
+  factory ParsedCountdownDraft.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(String? value) {
+      if (value == null || value.isEmpty) return null;
+      return DateTime.tryParse(value);
+    }
+
+    int? parseLunarPart(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is String) {
+        final match = RegExp(r'\d+').firstMatch(value);
+        if (match != null) return int.tryParse(match.group(0)!);
+      }
+      return null;
+    }
+
+    // 解析农历日期字符串（如 "07-15"）
+    int? lunarMonth;
+    int? lunarDay;
+    final lunarDateStr = json['lunar_date'] as String?;
+    if (lunarDateStr != null) {
+      final parts = lunarDateStr.split('-');
+      if (parts.length == 2) {
+        lunarMonth = int.tryParse(parts[0]);
+        lunarDay = int.tryParse(parts[1]);
+      }
+    }
+
+    return ParsedCountdownDraft(
+      title: json['title'] as String? ?? '未命名倒计时',
+      targetDate: parseDate(json['target_date'] as String?) ?? DateTime.now(),
+      category: json['category'] as String?,
+      repeatYearly: json['repeat_yearly'] as bool? ?? false,
+      isLunar: json['is_lunar'] as bool? ?? false,
+      lunarMonth: lunarMonth ?? parseLunarPart(json['lunar_month']),
+      lunarDay: lunarDay ?? parseLunarPart(json['lunar_day']),
+    );
+  }
+
+  @override
+  String toString() {
+    return 'ParsedCountdownDraft(title: $title, targetDate: $targetDate, '
+        'category: $category, repeatYearly: $repeatYearly, isLunar: $isLunar)';
+  }
+}
+
+/// AI 解析后的待办草稿
+class ParsedTodoDraft {
+  final String title;
+  final DateTime? dueDate;
+  final DateTime? dueTime;
+  final int priority;
+  final String? description;
+
+  const ParsedTodoDraft({
+    required this.title,
+    this.dueDate,
+    this.dueTime,
+    this.priority = 0,
+    this.description,
+  });
+
+  /// 从 LLM 返回的 JSON 创建
+  factory ParsedTodoDraft.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(String? value) {
+      if (value == null || value.isEmpty) return null;
+      return DateTime.tryParse(value);
+    }
+
+    DateTime? parseTime(String? value, DateTime? date) {
+      if (value == null || value.isEmpty || date == null) return null;
+      final parts = value.split(':');
+      if (parts.length >= 2) {
+        final hour = int.tryParse(parts[0]);
+        final minute = int.tryParse(parts[1]);
+        if (hour != null && minute != null) {
+          return DateTime(date.year, date.month, date.day, hour, minute);
+        }
+      }
+      return null;
+    }
+
+    final dueDate = parseDate(json['due_date'] as String?);
+    final dueTime = parseTime(json['due_time'] as String?, dueDate);
+
+    return ParsedTodoDraft(
+      title: json['title'] as String? ?? '未命名待办',
+      dueDate: dueDate,
+      dueTime: dueTime,
+      priority: json['priority'] as int? ?? 0,
+      description: json['description'] as String?,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'ParsedTodoDraft(title: $title, dueDate: $dueDate, priority: $priority)';
+  }
+}
+
+/// 统一的 AI 解析结果
+class ParsedScheduleResult {
+  /// 解析结果类型
+  final String type;
+
+  /// 事件草稿（type=event 时有值）
+  final ParsedEventDraft? eventDraft;
+
+  /// 倒计时草稿（type=countdown 时有值）
+  final ParsedCountdownDraft? countdownDraft;
+
+  /// 待办草稿（type=todo 时有值）
+  final ParsedTodoDraft? todoDraft;
+
+  const ParsedScheduleResult({
+    required this.type,
+    this.eventDraft,
+    this.countdownDraft,
+    this.todoDraft,
+  });
+
+  /// 从 LLM 返回的 JSON 创建
+  factory ParsedScheduleResult.fromJson(Map<String, dynamic> json) {
+    final typeStr = json['type'] as String? ?? 'event';
+
+    switch (typeStr) {
+      case 'countdown':
+        return ParsedScheduleResult(
+          type: 'countdown',
+          countdownDraft: ParsedCountdownDraft.fromJson(json),
+        );
+      case 'todo':
+        return ParsedScheduleResult(
+          type: 'todo',
+          todoDraft: ParsedTodoDraft.fromJson(json),
+        );
+      default:
+        return ParsedScheduleResult(
+          type: 'event',
+          eventDraft: ParsedEventDraft.fromJson(json),
+        );
+    }
+  }
+
+  /// 是否是事件类型
+  bool get isEvent => type == 'event';
+
+  /// 是否是倒计时类型
+  bool get isCountdown => type == 'countdown';
+
+  /// 是否是待办类型
+  bool get isTodo => type == 'todo';
+}
+
 /// 预设的 LLM 服务提供商
 class LLMProvider {
   final String name;

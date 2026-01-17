@@ -221,9 +221,9 @@ class _HomeScreenContent extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            // 使用选中的日期作为初始日期
+            // 使用选中的日期作为初始日期，跳转到统一的新建页面
             final date = viewModel.selectedDate;
-            context.push('/event/create?date=${date.toIso8601String()}');
+            context.goScheduleCreate(date: date);
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -238,7 +238,7 @@ class _HomeScreenContent extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  '创建事件',
+                  '新建日程',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,
@@ -306,6 +306,16 @@ class _HomeScreenContent extends StatelessWidget {
                 isSelected: false,
                 onTap: () {
                   context.push(RoutePaths.countdown);
+                },
+                colorScheme: colorScheme,
+              ),
+              _buildNavItem(
+                context: context,
+                icon: Icons.checklist,
+                label: '待办',
+                isSelected: false,
+                onTap: () {
+                  context.push(RoutePaths.todo);
                 },
                 colorScheme: colorScheme,
               ),

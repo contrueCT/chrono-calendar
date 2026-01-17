@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/utils/lunar_utils.dart';
 import '../../../data/models/event_model.dart';
+import '../../../data/models/calendar_display_item.dart';
 
 /// 日历单元格组件 - 显示单个日期
 class CalendarCell extends StatelessWidget {
@@ -16,8 +17,11 @@ class CalendarCell extends StatelessWidget {
   /// 是否在当前月份
   final bool isInCurrentMonth;
 
-  /// 该日期的事件列表
+  /// 该日期的事件列表（保留兼容性）
   final List<EventInstance> events;
+
+  /// 该日期的所有日历项（事件 + 倒计时 + 待办）
+  final List<CalendarDisplayItem> items;
 
   /// 点击回调
   final VoidCallback? onTap;
@@ -35,6 +39,7 @@ class CalendarCell extends StatelessWidget {
     this.isToday = false,
     this.isInCurrentMonth = true,
     this.events = const [],
+    this.items = const [],
     this.onTap,
     this.onLongPress,
     this.showLunar = true,
@@ -91,8 +96,11 @@ class CalendarCell extends StatelessWidget {
               ),
             ],
 
-            // 事件标记点
-            if (events.isNotEmpty) ...[
+            // 事件标记（使用 items 如果提供，否则回退到 events）
+            if (items.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              _buildItemMarkers(colorScheme),
+            ] else if (events.isNotEmpty) ...[
               const SizedBox(height: 2),
               _buildEventMarkers(colorScheme),
             ],
@@ -166,6 +174,101 @@ class CalendarCell extends StatelessWidget {
         );
       }).toList(),
     );
+  }
+
+  /// 构建日历项标记（支持倒计时/待办标签 + 事件小点）
+  Widget _buildItemMarkers(ColorScheme colorScheme) {
+    // 分离不同类型的项目
+    final countdowns = items.whereType<CountdownDisplayItem>().toList();
+    final todos = items.whereType<TodoDisplayItem>().where((t) => !t.isCompleted).toList();
+    final eventItems = items.whereType<EventDisplayItem>().toList();
+
+    // 优先显示倒计时和待办的标签（最多1个）
+    final labelItems = [...countdowns, ...todos];
+    final hasLabel = labelItems.isNotEmpty;
+
+    // 如果有标签项目，显示第一个标签
+    if (hasLabel) {
+      final firstItem = labelItems.first;
+      final itemColor = _getItemColor(firstItem, colorScheme);
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? colorScheme.onPrimary.withOpacity(0.2)
+                : itemColor.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Text(
+            firstItem.title,
+            style: TextStyle(
+              fontSize: 8,
+              color: isSelected ? colorScheme.onPrimary : itemColor,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    // 否则显示事件小点
+    if (eventItems.isNotEmpty) {
+      final displayEvents = eventItems.take(3).toList();
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: displayEvents.map((item) {
+          return Container(
+            width: 5,
+            height: 5,
+            margin: const EdgeInsets.symmetric(horizontal: 1),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? colorScheme.onPrimary.withOpacity(0.8)
+                  : _getItemColor(item, colorScheme),
+              shape: BoxShape.circle,
+            ),
+          );
+        }).toList(),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  /// 获取日历项的显示颜色
+  Color _getItemColor(CalendarDisplayItem item, ColorScheme colorScheme) {
+    // 如果有自定义颜色，使用自定义颜色
+    if (item.color != null) {
+      return Color(item.color!);
+    }
+
+    // 根据类型返回默认颜色
+    switch (item.itemType) {
+      case CalendarItemType.countdown:
+        return Colors.orange;
+      case CalendarItemType.todo:
+        final todoItem = item as TodoDisplayItem;
+        // 根据优先级返回颜色
+        switch (todoItem.priority) {
+          case 3:
+            return Colors.red;
+          case 2:
+            return Colors.orange;
+          case 1:
+            return Colors.blue;
+          default:
+            return Colors.teal;
+        }
+      case CalendarItemType.event:
+        return colorScheme.primary;
+    }
   }
 }
 
