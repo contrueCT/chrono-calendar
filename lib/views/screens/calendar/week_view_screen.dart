@@ -228,7 +228,7 @@ class _WeekDaySelector extends StatelessWidget {
   }
 }
 
-/// 周时间网格
+/// 周时间网格 - 使用 PageView 实现平滑滑动
 class _WeekTimeGrid extends StatefulWidget {
   final CalendarViewModel viewModel;
   final int weekStartDay;
@@ -244,54 +244,92 @@ class _WeekTimeGrid extends StatefulWidget {
 
 class _WeekTimeGridState extends State<_WeekTimeGrid> {
   final ScrollController _scrollController = ScrollController();
+  late PageController _pageController;
   static const double hourHeight = 60.0;
   static const int startHour = 0;
   static const int endHour = 24;
+  static const int _initialPage = 1000; // 中间页，支持前后翻页
+  int _currentPage = _initialPage;
+  late DateTime _baseDate; // 初始页对应的周起始日期
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _initialPage);
+    _baseDate = _getWeekStartDate(widget.viewModel.focusedDate);
     // 初始滚动到当前时间附近
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToCurrentTime();
     });
   }
 
+  /// 获取包含指定日期的周的起始日期
+  DateTime _getWeekStartDate(DateTime date) {
+    final daysFromStart = (date.weekday - widget.weekStartDay + 7) % 7;
+    return DateTime(date.year, date.month, date.day)
+        .subtract(Duration(days: daysFromStart));
+  }
+
+  /// 根据页面索引计算对应的周起始日期
+  DateTime _getWeekStartForPage(int page) {
+    final offset = page - _initialPage;
+    return _baseDate.add(Duration(days: offset * 7));
+  }
+
+  @override
+  void didUpdateWidget(_WeekTimeGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 如果 focusedDate 从外部改变（如日期选择器），重置 PageView
+    final expectedWeekStart = _getWeekStartForPage(_currentPage);
+    final currentWeekStart = _getWeekStartDate(widget.viewModel.focusedDate);
+    if (expectedWeekStart != currentWeekStart) {
+      _baseDate = currentWeekStart;
+      _currentPage = _initialPage;
+      _pageController.jumpToPage(_initialPage);
+    }
+  }
+
   void _scrollToCurrentTime() {
     final now = DateTime.now();
     final targetOffset = (now.hour - 1) * hourHeight;
     if (_scrollController.hasClients) {
-      _scrollController.jumpTo(targetOffset.clamp(0, _scrollController.position.maxScrollExtent));
+      _scrollController.jumpTo(
+          targetOffset.clamp(0, _scrollController.position.maxScrollExtent));
     }
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final weekDates = _getWeekDates();
-
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        if (details.primaryVelocity != null) {
-          if (details.primaryVelocity! < -300) {
-            // 向左滑动 → 下一周
-            widget.viewModel.goToNext();
-          } else if (details.primaryVelocity! > 300) {
-            // 向右滑动 → 上一周
-            widget.viewModel.goToPrevious();
-          }
-        }
+    return PageView.builder(
+      controller: _pageController,
+      onPageChanged: (index) {
+        final weekStart = _getWeekStartForPage(index);
+        _currentPage = index;
+        // 更新 ViewModel 的 focusedDate 到周的中间日期（便于显示）
+        widget.viewModel.jumpToDate(weekStart);
       },
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        child: SizedBox(
+      itemBuilder: (context, index) {
+        final weekStart = _getWeekStartForPage(index);
+        final weekDates =
+            List.generate(7, (i) => weekStart.add(Duration(days: i)));
+        return _buildWeekContent(weekDates);
+      },
+    );
+  }
+
+  Widget _buildWeekContent(List<DateTime> weekDates) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SingleChildScrollView(
+      controller: _scrollController,
+      child: SizedBox(
         height: (endHour - startHour) * hourHeight,
         child: Stack(
           children: [
@@ -306,16 +344,16 @@ class _WeekTimeGridState extends State<_WeekTimeGrid> {
                   final index = entry.key;
                   final date = entry.value;
                   return Expanded(
-                    child: _buildDayColumn(context, date, index == 6, colorScheme),
+                    child:
+                        _buildDayColumn(context, date, index == 6, colorScheme),
                   );
                 }),
               ],
             ),
 
             // 当前时间指示线
-            _buildCurrentTimeIndicator(colorScheme),
+            _buildCurrentTimeIndicator(colorScheme, weekDates),
           ],
-        ),
         ),
       ),
     );
@@ -418,9 +456,9 @@ class _WeekTimeGridState extends State<_WeekTimeGrid> {
     );
   }
 
-  Widget _buildCurrentTimeIndicator(ColorScheme colorScheme) {
+  Widget _buildCurrentTimeIndicator(
+      ColorScheme colorScheme, List<DateTime> weekDates) {
     final now = DateTime.now();
-    final weekDates = _getWeekDates();
 
     // 检查今天是否在本周内
     final todayIndex = weekDates.indexWhere(
@@ -468,10 +506,17 @@ class _WeekTimeGridState extends State<_WeekTimeGrid> {
     );
   }
 
-  void _onEventTap(BuildContext context, EventInstance event) {
+  Future<void> _onEventTap(BuildContext context, EventInstance event) async {
     // 跳转到事件详情页
     final instanceDateStr = event.instanceStart.toIso8601String();
-    context.push('/event/${event.event.uid}?instanceDate=$instanceDateStr');
+    final result = await context.push<bool>(
+      '/event/${event.event.uid}?instanceDate=$instanceDateStr',
+    );
+
+    // 如果返回 true（删除或修改成功），刷新日历
+    if (result == true && context.mounted) {
+      widget.viewModel.refreshEvents();
+    }
   }
 
   Future<void> _onEventDragComplete(

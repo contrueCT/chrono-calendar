@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:gal/gal.dart';
 import 'package:intl/intl.dart';
 import '../data/models/event_model.dart';
+import '../data/models/countdown_model.dart';
 import '../data/models/share_template.dart';
 import '../core/utils/lunar_utils.dart';
 
@@ -311,34 +312,33 @@ class ShareCardWidget extends StatelessWidget {
   }
 }
 
-/// 倒计时分享卡片 Widget
+/// 倒计时分享卡片 Widget（增强版）
 class CountdownShareCardWidget extends StatelessWidget {
-  /// 倒计时标题
-  final String title;
-
-  /// 目标日期
-  final DateTime targetDate;
-
-  /// 剩余天数
-  final int daysRemaining;
-
-  /// 是否为纪念日（已过去）
-  final bool isAnniversary;
+  /// 倒计时数据
+  final CountdownModel countdown;
 
   /// 分享模板
   final ShareTemplate template;
 
+  /// 是否显示农历
+  final bool showLunar;
+
+  /// 是否显示分类图标
+  final bool showCategoryIcon;
+
   const CountdownShareCardWidget({
     super.key,
-    required this.title,
-    required this.targetDate,
-    required this.daysRemaining,
-    required this.isAnniversary,
+    required this.countdown,
     required this.template,
+    this.showLunar = true,
+    this.showCategoryIcon = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final daysRemaining = countdown.getDaysRemaining();
+    final nextTargetDate = countdown.getNextTargetDate();
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: Container(
@@ -346,80 +346,188 @@ class CountdownShareCardWidget extends StatelessWidget {
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
           gradient: template.gradient,
-          // borderRadius 由外层 ClipRRect 处理，确保圆角外区域为透明
         ),
         child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // 标题
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: template.textColor,
-            ),
-            textAlign: TextAlign.center,
-          ),
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 分类图标
+            if (showCategoryIcon) ...[
+              _buildCategoryIcon(),
+              const SizedBox(height: 16),
+            ],
 
-          const SizedBox(height: 24),
-
-          // 大号天数
-          Text(
-            daysRemaining.abs().toString(),
-            style: TextStyle(
-              fontSize: 72,
-              fontWeight: FontWeight.w700,
-              color: template.textColor,
-              height: 1,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // 天数说明
-          Text(
-            isAnniversary ? '天' : '天后',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w500,
-              color: template.secondaryTextColor,
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // 目标日期
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: template.textColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              DateFormat('yyyy年M月d日').format(targetDate),
+            // 标题
+            Text(
+              countdown.title,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
                 color: template.textColor,
               ),
+              textAlign: TextAlign.center,
             ),
-          ),
 
-          const SizedBox(height: 32),
+            const SizedBox(height: 24),
 
-          // 底部水印
-          Text(
-            'Created with Chrono',
-            style: TextStyle(
-              fontSize: 12,
-              color: template.secondaryTextColor.withOpacity(0.6),
-              fontStyle: FontStyle.italic,
+            // 大号天数
+            Text(
+              daysRemaining.abs().toString(),
+              style: TextStyle(
+                fontSize: 72,
+                fontWeight: FontWeight.w700,
+                color: template.textColor,
+                height: 1,
+              ),
             ),
-          ),
-        ],
-      ),
+
+            const SizedBox(height: 8),
+
+            // 天数说明
+            Text(
+              _getDaysLabel(daysRemaining),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w500,
+                color: template.secondaryTextColor,
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // 目标日期
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: template.textColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    DateFormat('yyyy年M月d日 EEEE', 'zh_CN').format(nextTargetDate),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: template.textColor,
+                    ),
+                  ),
+                  // 农历日期
+                  if (showLunar) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      countdown.isLunar
+                          ? _getLunarDateText()
+                          : LunarUtils.getShortLunarString(nextTargetDate),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: template.secondaryTextColor,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // 每年重复标识
+            if (countdown.repeatYearly) ...[
+              const SizedBox(height: 16),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.repeat,
+                    size: 14,
+                    color: template.secondaryTextColor,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '每年重复',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: template.secondaryTextColor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            const SizedBox(height: 32),
+
+            // 底部水印
+            Text(
+              'Created with Chrono',
+              style: TextStyle(
+                fontSize: 12,
+                color: template.secondaryTextColor.withOpacity(0.6),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  /// 构建分类图标
+  Widget _buildCategoryIcon() {
+    final iconData = _getCategoryIcon(countdown.category);
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: template.textColor.withOpacity(0.15),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        iconData,
+        size: 28,
+        color: template.iconColor,
+      ),
+    );
+  }
+
+  /// 获取天数说明文本
+  String _getDaysLabel(int days) {
+    if (days == 0) return '就是今天';
+    if (days > 0) return '天后';
+    return '天前';
+  }
+
+  /// 获取农历日期文本
+  String _getLunarDateText() {
+    if (countdown.lunarMonth == null || countdown.lunarDay == null) {
+      return '';
+    }
+    const monthNames = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊'];
+    final monthName = monthNames[(countdown.lunarMonth! - 1) % 12];
+    final prefix = countdown.isLeapMonth ? '闰' : '';
+    return '农历 $prefix${monthName}月${_getLunarDayName(countdown.lunarDay!)}';
+  }
+
+  /// 获取农历日期名称
+  String _getLunarDayName(int day) {
+    const days = [
+      '初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十',
+      '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
+      '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十',
+    ];
+    return days[(day - 1) % 30];
+  }
+
+  /// 获取分类图标
+  IconData _getCategoryIcon(CountdownCategory? category) {
+    switch (category) {
+      case CountdownCategory.birthday:
+        return Icons.cake;
+      case CountdownCategory.anniversary:
+        return Icons.favorite;
+      case CountdownCategory.holiday:
+        return Icons.celebration;
+      case CountdownCategory.deadline:
+        return Icons.schedule;
+      case CountdownCategory.other:
+      case null:
+        return Icons.event;
+    }
   }
 }

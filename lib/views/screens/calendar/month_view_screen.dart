@@ -181,8 +181,8 @@ class _WeekdayHeader extends StatelessWidget {
   }
 }
 
-/// 月历网格
-class _MonthGrid extends StatelessWidget {
+/// 月历网格 - 使用 PageView 实现平滑滑动
+class _MonthGrid extends StatefulWidget {
   final CalendarViewModel viewModel;
   final bool showLunar;
   final int weekStartDay;
@@ -194,43 +194,85 @@ class _MonthGrid extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        if (details.primaryVelocity != null) {
-          if (details.primaryVelocity! < -300) {
-            // 向左滑动 → 下一月
-            viewModel.goToNext();
-          } else if (details.primaryVelocity! > 300) {
-            // 向右滑动 → 上一月
-            viewModel.goToPrevious();
-          }
-        }
-      },
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Column(
-            children: [
-              // 日历网格
-              Expanded(
-                flex: 2,
-                child: _buildCalendarGrid(context, constraints),
-              ),
+  State<_MonthGrid> createState() => _MonthGridState();
+}
 
-              // 选中日期的事件列表
-              Expanded(
-                flex: 1,
-                child: _SelectedDateEvents(viewModel: viewModel),
-              ),
-            ],
-          );
-        },
-      ),
+class _MonthGridState extends State<_MonthGrid> {
+  late PageController _pageController;
+  static const int _initialPage = 1000; // 中间页，支持前后翻页
+  int _currentPage = _initialPage;
+  late DateTime _baseDate; // 初始页对应的日期
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _initialPage);
+    _baseDate = DateTime(
+      widget.viewModel.focusedDate.year,
+      widget.viewModel.focusedDate.month,
+      1,
     );
   }
 
-  Widget _buildCalendarGrid(BuildContext context, BoxConstraints constraints) {
-    final dates = _generateMonthDates();
+  @override
+  void didUpdateWidget(_MonthGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 如果 focusedDate 从外部改变（如日期选择器），重置 PageView
+    final expectedDate = _getDateForPage(_currentPage);
+    final currentFocused = widget.viewModel.focusedDate;
+    if (expectedDate.year != currentFocused.year ||
+        expectedDate.month != currentFocused.month) {
+      _baseDate = DateTime(currentFocused.year, currentFocused.month, 1);
+      _currentPage = _initialPage;
+      _pageController.jumpToPage(_initialPage);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  /// 根据页面索引计算对应的月份
+  DateTime _getDateForPage(int page) {
+    final offset = page - _initialPage;
+    return DateTime(_baseDate.year, _baseDate.month + offset, 1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // 日历网格（可滑动翻页）
+        Expanded(
+          flex: 2,
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              final targetDate = _getDateForPage(index);
+              _currentPage = index;
+              // 更新 ViewModel 的 focusedDate
+              widget.viewModel.jumpToDate(targetDate);
+            },
+            itemBuilder: (context, index) {
+              final displayDate = _getDateForPage(index);
+              return _buildCalendarGrid(context, displayDate);
+            },
+          ),
+        ),
+
+        // 选中日期的事件列表
+        Expanded(
+          flex: 1,
+          child: _SelectedDateEvents(viewModel: widget.viewModel),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCalendarGrid(BuildContext context, DateTime displayDate) {
+    final dates = _generateMonthDates(displayDate);
     final weeks = _groupIntoWeeks(dates);
 
     return Padding(
@@ -243,12 +285,12 @@ class _MonthGrid extends StatelessWidget {
                 return Expanded(
                   child: CalendarCell(
                     date: date,
-                    isSelected: viewModel.isSelectedDate(date),
-                    isToday: viewModel.isToday(date),
-                    isInCurrentMonth: viewModel.isInCurrentMonth(date),
-                    items: viewModel.getItemsForDate(date),
-                    onTap: () => viewModel.selectDate(date),
-                    showLunar: showLunar,
+                    isSelected: widget.viewModel.isSelectedDate(date),
+                    isToday: widget.viewModel.isToday(date),
+                    isInCurrentMonth: date.month == displayDate.month,
+                    items: widget.viewModel.getItemsForDate(date),
+                    onTap: () => widget.viewModel.selectDate(date),
+                    showLunar: widget.showLunar,
                   ),
                 );
               }).toList(),
@@ -260,9 +302,9 @@ class _MonthGrid extends StatelessWidget {
   }
 
   /// 生成月视图的日期列表（包括前后月份的日期）
-  List<DateTime> _generateMonthDates() {
-    final year = viewModel.focusedDate.year;
-    final month = viewModel.focusedDate.month;
+  List<DateTime> _generateMonthDates(DateTime monthDate) {
+    final year = monthDate.year;
+    final month = monthDate.month;
 
     // 当月第一天
     final firstDayOfMonth = DateTime(year, month, 1);
@@ -271,12 +313,15 @@ class _MonthGrid extends StatelessWidget {
 
     // 计算需要显示的第一天（上月的日期）
     // 根据设置的起始日计算偏移
-    int daysBeforeFirst = (firstDayOfMonth.weekday - weekStartDay + 7) % 7;
-    final firstVisibleDate = firstDayOfMonth.subtract(Duration(days: daysBeforeFirst));
+    int daysBeforeFirst =
+        (firstDayOfMonth.weekday - widget.weekStartDay + 7) % 7;
+    final firstVisibleDate =
+        firstDayOfMonth.subtract(Duration(days: daysBeforeFirst));
 
     // 计算需要显示的最后一天（下月的日期）
     // 计算当月最后一天距离该周结束还有几天
-    int daysAfterLast = (weekStartDay - 1 - lastDayOfMonth.weekday + 7) % 7;
+    int daysAfterLast =
+        (widget.weekStartDay - 1 - lastDayOfMonth.weekday + 7) % 7;
     final lastVisibleDate = lastDayOfMonth.add(Duration(days: daysAfterLast));
 
     // 生成日期列表
@@ -438,10 +483,17 @@ class _SelectedDateEvents extends StatelessWidget {
     );
   }
 
-  void _onEventTap(BuildContext context, EventInstance event) {
+  Future<void> _onEventTap(BuildContext context, EventInstance event) async {
     // 导航到事件详情页，传递实例日期用于重复事件
     final instanceDateParam = event.instanceStart.toIso8601String();
-    context.push('/event/${event.event.uid}?instanceDate=$instanceDateParam');
+    final result = await context.push<bool>(
+      '/event/${event.event.uid}?instanceDate=$instanceDateParam',
+    );
+
+    // 如果返回 true（删除或修改成功），刷新日历
+    if (result == true && context.mounted) {
+      viewModel.refreshEvents();
+    }
   }
 
   void _onCountdownTap(BuildContext context, CountdownDisplayItem item) {

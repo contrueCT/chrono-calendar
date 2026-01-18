@@ -12,6 +12,8 @@ import '../../views/screens/settings/settings_screen.dart';
 import '../../views/screens/settings/llm_settings_screen.dart';
 import '../../views/screens/countdown/countdown_list_screen.dart';
 import '../../views/screens/countdown/countdown_edit_screen.dart';
+import '../../views/screens/countdown/countdown_share_screen.dart';
+import '../../data/models/countdown_model.dart';
 import '../../views/screens/schedule/schedule_create_screen.dart';
 import '../../views/screens/todo/todo_list_screen.dart';
 import '../../views/screens/todo/todo_edit_screen.dart';
@@ -35,6 +37,7 @@ class RoutePaths {
   static const String search = '/search';
   static const String countdown = '/countdown';
   static const String countdownEdit = '/countdown/edit';
+  static const String countdownShare = '/countdown/share';
   static const String todo = '/todo';
   static const String todoEdit = '/todo/edit';
   static const String calendarManage = '/calendar-manage';
@@ -61,6 +64,7 @@ class RouteNames {
   static const String search = 'search';
   static const String countdown = 'countdown';
   static const String countdownEdit = 'countdownEdit';
+  static const String countdownShare = 'countdownShare';
   static const String todo = 'todo';
   static const String todoEdit = 'todoEdit';
   static const String calendarManage = 'calendarManage';
@@ -293,6 +297,36 @@ class AppRouter {
       path: RoutePaths.countdown,
       name: RouteNames.countdown,
       builder: (context, state) => const CountdownListScreen(),
+    ),
+
+    // 倒计时分享
+    GoRoute(
+      path: RoutePaths.countdownShare,
+      name: RouteNames.countdownShare,
+      builder: (context, state) {
+        final countdown = state.extra as CountdownModel?;
+        if (countdown == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('错误')),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text('缺少倒计时数据'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => context.pop(),
+                    child: const Text('返回'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return CountdownShareScreen(countdown: countdown);
+      },
     ),
 
     // 倒计时创建

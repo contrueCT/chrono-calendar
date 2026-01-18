@@ -6,6 +6,7 @@ import '../../../data/models/countdown_model.dart';
 import '../../../services/countdown_service.dart';
 import '../../../core/utils/lunar_utils.dart';
 import '../../../core/utils/snackbar_helper.dart';
+import '../../../core/router/app_router.dart';
 
 /// 倒计时编辑页面
 class CountdownEditScreen extends StatefulWidget {
@@ -142,6 +143,17 @@ class _CountdownEditScreenState extends State<CountdownEditScreen> {
       appBar: AppBar(
         title: Text(_isEditMode ? '编辑倒计时' : '新建倒计时'),
         actions: [
+          // 分享按钮（仅编辑模式）
+          if (_isEditMode && _existingCountdown != null)
+            IconButton(
+              icon: const Icon(Icons.share),
+              tooltip: '分享',
+              onPressed: () => context.push(
+                RoutePaths.countdownShare,
+                extra: _existingCountdown,
+              ),
+            ),
+          // 删除按钮
           if (_isEditMode)
             IconButton(
               icon: const Icon(Icons.delete_outline),
