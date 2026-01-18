@@ -25,7 +25,7 @@ class LLMService {
 
 请判断用户意图并返回 JSON（三种类型之一）：
 
-**类型1 - 普通日程**（会议、约会、活动等有具体时间段的事项）：
+**类型1 - 普通日程**（会议、约会、活动、考试等有具体时间段的事项）：
 {
   "type": "event",
   "title": "事件标题",
@@ -37,7 +37,7 @@ class LLMService {
   "reminder_minutes": 15
 }
 
-**类型2 - 倒计时/纪念日**（生日、纪念日、重要日期等）：
+**类型2 - 倒计时/纪念日**（生日、纪念日、重要日期、截止日期等）：
 {
   "type": "countdown",
   "title": "标题",
@@ -403,7 +403,8 @@ class LLMService {
   // ==================== 连接测试 ====================
 
   /// 测试 LLM 服务连接
-  Future<LLMTestResult> testConnection(LLMConfigModel config, String apiKey) async {
+  Future<LLMTestResult> testConnection(
+      LLMConfigModel config, String apiKey) async {
     try {
       final response = await _dio.post(
         '${config.baseUrl}/chat/completions',
