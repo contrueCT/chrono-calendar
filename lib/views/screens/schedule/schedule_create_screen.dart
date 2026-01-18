@@ -285,8 +285,20 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
 
         // 日期时间选择
         DateTimeRangePicker(
-          startDateTime: _eventStartDate,
-          endDateTime: _eventEndDate,
+          startDateTime: DateTime(
+            _eventStartDate.year,
+            _eventStartDate.month,
+            _eventStartDate.day,
+            _eventStartTime.hour,
+            _eventStartTime.minute,
+          ),
+          endDateTime: DateTime(
+            _eventEndDate.year,
+            _eventEndDate.month,
+            _eventEndDate.day,
+            _eventEndTime.hour,
+            _eventEndTime.minute,
+          ),
           isAllDay: _isAllDay,
           onStartDateChanged: (date) => setState(() => _eventStartDate = date),
           onStartTimeChanged: (time) => setState(() => _eventStartTime = time),
