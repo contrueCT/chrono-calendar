@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 /// SnackBar 辅助类
@@ -12,8 +13,10 @@ class SnackBarHelper {
     String? actionLabel,
     VoidCallback? onAction,
   }) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+
+    final controller = messenger.showSnackBar(
       SnackBar(
         content: Text(message),
         duration: duration,
@@ -28,6 +31,14 @@ class SnackBarHelper {
             : null,
       ),
     );
+
+    // 当有 action 时，Flutter 会忽略 duration 参数
+    // 使用 Timer 强制在指定时间后关闭 SnackBar
+    if (actionLabel != null) {
+      Timer(duration, () {
+        controller.close();
+      });
+    }
   }
 
   /// 显示成功提示

@@ -205,7 +205,7 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
 
                 // AI 智能输入
                 AIInputField(
-                  onParsed: _onAIParsed,
+                  onParsed: _onScheduleParsed,
                 ),
 
                 // 表单内容
@@ -823,27 +823,107 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
 
   // ==================== AI 解析处理 ====================
 
-  void _onAIParsed(ParsedEventDraft draft) {
+  /// AI 解析处理（支持事件/倒计时/待办）
+  void _onScheduleParsed(ParsedScheduleResult result) {
     setState(() {
-      _titleController.text = draft.title;
-
-      // 根据解析结果自动切换类型（简单实现）
-      // 可以根据 AI 返回的类型字段来判断
-
-      // 填充事件字段
-      if (draft.startTime != null) {
-        _eventStartDate = draft.startTime!;
-      }
-      if (draft.endTime != null) {
-        _eventEndDate = draft.endTime!;
-      }
-      _isAllDay = draft.isAllDay;
-      _eventLocation = draft.location;
-      _eventDescription = draft.description;
-      if (draft.reminderMinutes != null) {
-        _eventReminders = [draft.reminderMinutes!];
+      switch (result.type) {
+        case 'event':
+          if (result.eventDraft != null) {
+            _handleEventDraft(result.eventDraft!);
+          }
+          break;
+        case 'countdown':
+          if (result.countdownDraft != null) {
+            _handleCountdownDraft(result.countdownDraft!);
+          }
+          break;
+        case 'todo':
+          if (result.todoDraft != null) {
+            _handleTodoDraft(result.todoDraft!);
+          }
+          break;
       }
     });
+  }
+
+  /// 处理事件类型解析结果
+  void _handleEventDraft(ParsedEventDraft draft) {
+    _selectedType = ScheduleType.event;
+    _titleController.text = draft.title;
+
+    if (draft.startTime != null) {
+      _eventStartDate = draft.startTime!;
+      _eventStartTime = TimeOfDay.fromDateTime(draft.startTime!);
+    }
+    if (draft.endTime != null) {
+      _eventEndDate = draft.endTime!;
+      _eventEndTime = TimeOfDay.fromDateTime(draft.endTime!);
+    }
+    _isAllDay = draft.isAllDay;
+    _eventLocation = draft.location;
+    _eventDescription = draft.description;
+    if (draft.reminderMinutes != null) {
+      _eventReminders = [draft.reminderMinutes!];
+    }
+  }
+
+  /// 处理倒计时类型解析结果
+  void _handleCountdownDraft(ParsedCountdownDraft draft) {
+    // 根据 category 决定类型
+    if (draft.category == 'birthday') {
+      _selectedType = ScheduleType.birthday;
+      _countdownCategory = CountdownCategory.birthday;
+      _repeatYearly = true;
+    } else {
+      _selectedType = ScheduleType.important;
+      _countdownCategory = _mapCategoryFromString(draft.category);
+    }
+
+    _titleController.text = draft.title;
+    _countdownTargetDate = draft.targetDate;
+    _repeatYearly = draft.repeatYearly;
+    _isLunar = draft.isLunar;
+
+    if (draft.isLunar && draft.lunarMonth != null && draft.lunarDay != null) {
+      _lunarMonth = draft.lunarMonth;
+      _lunarDay = draft.lunarDay;
+    } else {
+      _updateLunarFromSolar(draft.targetDate);
+    }
+  }
+
+  /// 处理待办类型解析结果
+  void _handleTodoDraft(ParsedTodoDraft draft) {
+    _selectedType = ScheduleType.todo;
+    _titleController.text = draft.title;
+    _todoDueDate = draft.dueDate;
+
+    if (draft.dueTime != null) {
+      _todoDueTime = TimeOfDay.fromDateTime(draft.dueTime!);
+    }
+    _todoPriority = draft.priority;
+    _todoDescription = draft.description;
+
+    // 如果有截止日期，默认启用提醒
+    if (_todoDueDate != null) {
+      _todoNotifyEnabled = true;
+    }
+  }
+
+  /// 从字符串映射 CountdownCategory
+  CountdownCategory _mapCategoryFromString(String? category) {
+    switch (category) {
+      case 'birthday':
+        return CountdownCategory.birthday;
+      case 'anniversary':
+        return CountdownCategory.anniversary;
+      case 'holiday':
+        return CountdownCategory.holiday;
+      case 'deadline':
+        return CountdownCategory.deadline;
+      default:
+        return CountdownCategory.other;
+    }
   }
 
   // ==================== 保存处理 ====================

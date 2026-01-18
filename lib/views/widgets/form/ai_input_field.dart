@@ -8,8 +8,8 @@ import '../../../services/llm_service.dart';
 /// AI 智能输入组件
 /// 可折叠的自然语言输入框，用于快速创建日程
 class AIInputField extends StatefulWidget {
-  /// 解析成功后的回调，返回解析结果
-  final void Function(ParsedEventDraft draft) onParsed;
+  /// 解析成功后的回调，返回解析结果（支持事件/倒计时/待办）
+  final void Function(ParsedScheduleResult result) onParsed;
 
   /// 是否默认展开
   final bool initiallyExpanded;
@@ -107,7 +107,8 @@ class _AIInputFieldState extends State<AIInputField>
       _errorMessage = null;
     });
 
-    final result = await _llmService.parseNaturalLanguage(input);
+    // 使用 parseSchedule 支持三种类型：事件/倒计时/待办
+    final result = await _llmService.parseSchedule(input);
 
     if (!mounted) return;
 
@@ -115,9 +116,25 @@ class _AIInputFieldState extends State<AIInputField>
       _isLoading = false;
     });
 
-    if (result.isSuccess && result.draft != null) {
-      if (result.draft!.isValid) {
-        widget.onParsed(result.draft!);
+    if (result.isSuccess && result.result != null) {
+      final scheduleResult = result.result!;
+
+      // 根据类型验证结果有效性
+      bool isValid = false;
+      switch (scheduleResult.type) {
+        case 'event':
+          isValid = scheduleResult.eventDraft?.title.isNotEmpty == true;
+          break;
+        case 'countdown':
+          isValid = scheduleResult.countdownDraft?.title.isNotEmpty == true;
+          break;
+        case 'todo':
+          isValid = scheduleResult.todoDraft?.title.isNotEmpty == true;
+          break;
+      }
+
+      if (isValid) {
+        widget.onParsed(scheduleResult);
         _inputController.clear();
         // 解析成功后收起
         _toggleExpanded();
