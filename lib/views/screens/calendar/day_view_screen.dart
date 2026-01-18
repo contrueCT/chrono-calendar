@@ -264,7 +264,7 @@ class _DayHeader extends StatelessWidget {
   }
 }
 
-/// 日时间网格
+/// 日时间网格 - 使用 PageView 实现平滑滑动
 class _DayTimeGrid extends StatefulWidget {
   final CalendarViewModel viewModel;
 
@@ -276,16 +276,51 @@ class _DayTimeGrid extends StatefulWidget {
 
 class _DayTimeGridState extends State<_DayTimeGrid> {
   final ScrollController _scrollController = ScrollController();
+  late PageController _pageController;
   static const double hourHeight = 72.0;
   static const int startHour = 0;
   static const int endHour = 24;
+  static const int _initialPage = 1000; // 中间页，支持前后翻页
+  int _currentPage = _initialPage;
+  late DateTime _baseDate; // 初始页对应的日期
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _initialPage);
+    _baseDate = DateTime(
+      widget.viewModel.selectedDate.year,
+      widget.viewModel.selectedDate.month,
+      widget.viewModel.selectedDate.day,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToCurrentTime();
     });
+  }
+
+  /// 根据页面索引计算对应的日期
+  DateTime _getDateForPage(int page) {
+    final offset = page - _initialPage;
+    return _baseDate.add(Duration(days: offset));
+  }
+
+  @override
+  void didUpdateWidget(_DayTimeGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 如果 selectedDate 从外部改变（如日期选择器），重置 PageView
+    final expectedDate = _getDateForPage(_currentPage);
+    final currentSelected = widget.viewModel.selectedDate;
+    if (expectedDate.year != currentSelected.year ||
+        expectedDate.month != currentSelected.month ||
+        expectedDate.day != currentSelected.day) {
+      _baseDate = DateTime(
+        currentSelected.year,
+        currentSelected.month,
+        currentSelected.day,
+      );
+      _currentPage = _initialPage;
+      _pageController.jumpToPage(_initialPage);
+    }
   }
 
   void _scrollToCurrentTime() {
@@ -312,58 +347,63 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final events = widget.viewModel.selectedDateEvents;
+    return PageView.builder(
+      controller: _pageController,
+      onPageChanged: (index) {
+        final targetDate = _getDateForPage(index);
+        _currentPage = index;
+        // 更新 ViewModel 的日期
+        widget.viewModel.jumpToDate(targetDate);
+        widget.viewModel.selectDate(targetDate);
+      },
+      itemBuilder: (context, index) {
+        final displayDate = _getDateForPage(index);
+        return _buildDayContent(displayDate);
+      },
+    );
+  }
+
+  Widget _buildDayContent(DateTime displayDate) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final events = widget.viewModel.getEventsForDate(displayDate);
     final allDayEvents = events.where((e) => e.event.isAllDay).toList();
     final timedEvents = events.where((e) => !e.event.isAllDay).toList();
+    final isToday = widget.viewModel.isToday(displayDate);
 
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        if (details.primaryVelocity != null) {
-          if (details.primaryVelocity! < -300) {
-            // 向左滑动 → 下一天
-            widget.viewModel.goToNext();
-          } else if (details.primaryVelocity! > 300) {
-            // 向右滑动 → 上一天
-            widget.viewModel.goToPrevious();
-          }
-        }
-      },
-      child: Column(
-        children: [
-          // 全天事件区域
-          if (allDayEvents.isNotEmpty) _buildAllDaySection(allDayEvents, colorScheme),
+    return Column(
+      children: [
+        // 全天事件区域
+        if (allDayEvents.isNotEmpty)
+          _buildAllDaySection(allDayEvents, colorScheme),
 
-          // 时间轴
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              child: SizedBox(
-                height: (endHour - startHour) * hourHeight,
-                child: Stack(
-                  children: [
-                    // 时间网格背景
-                    _buildTimeGrid(colorScheme),
+        // 时间轴
+        Expanded(
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            child: SizedBox(
+              height: (endHour - startHour) * hourHeight,
+              child: Stack(
+                children: [
+                  // 时间网格背景
+                  _buildTimeGrid(colorScheme),
 
-                    // 事件块（使用布局辅助类处理重叠）
-                    ..._buildEventBlocks(timedEvents, colorScheme),
+                  // 事件块（使用布局辅助类处理重叠）
+                  ..._buildEventBlocks(timedEvents, colorScheme),
 
-                    // 当前时间指示线
-                    if (widget.viewModel.isToday(widget.viewModel.selectedDate))
-                      _buildCurrentTimeIndicator(colorScheme),
-                  ],
-                ),
+                  // 当前时间指示线
+                  if (isToday) _buildCurrentTimeIndicator(colorScheme),
+                ],
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -561,10 +601,17 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
     );
   }
 
-  void _onEventTap(BuildContext context, EventInstance event) {
+  Future<void> _onEventTap(BuildContext context, EventInstance event) async {
     // 跳转到事件详情页
     final instanceDateStr = event.instanceStart.toIso8601String();
-    context.push('/event/${event.event.uid}?instanceDate=$instanceDateStr');
+    final result = await context.push<bool>(
+      '/event/${event.event.uid}?instanceDate=$instanceDateStr',
+    );
+
+    // 如果返回 true（删除或修改成功），刷新日历
+    if (result == true && context.mounted) {
+      widget.viewModel.refreshEvents();
+    }
   }
 
   Future<void> _onEventDragComplete(
