@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -8,6 +9,7 @@ import 'services/notification_service.dart';
 import 'services/reminder_manager.dart';
 import 'viewmodels/settings_viewmodel.dart';
 import 'viewmodels/calendar_viewmodel.dart';
+import 'core/router/app_router.dart';
 
 void main() async {
   // 确保 Flutter 绑定初始化
@@ -82,10 +84,34 @@ Future<void> _initializeApp() async {
 
 /// 通知点击回调
 void _onNotificationTap(String? payload) {
-  // 解析 payload 并导航到事件详情
-  // 由于此时可能没有 Navigator context，需要通过全局 key 处理
-  // 实际导航逻辑将在 app.dart 中通过 navigatorKey 实现
   debugPrint('Notification tapped with payload: $payload');
+
+  if (payload == null || payload.isEmpty) return;
+
+  try {
+    // 解析 payload JSON
+    final data = jsonDecode(payload) as Map<String, dynamic>;
+    final eventUid = data['eventUid'] as String?;
+    final instanceDateStr = data['instanceDate'] as String?;
+
+    if (eventUid == null) return;
+
+    // 构建导航路径
+    String path = '/event/$eventUid';
+    if (instanceDateStr != null) {
+      path += '?instanceDate=$instanceDateStr';
+    }
+
+    // 使用延迟确保导航器已就绪
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = AppRouter.navigatorKey.currentContext;
+      if (context != null) {
+        AppRouter.router.push(path);
+      }
+    });
+  } catch (e) {
+    debugPrint('Failed to parse notification payload: $e');
+  }
 }
 
 /// 初始化错误界面

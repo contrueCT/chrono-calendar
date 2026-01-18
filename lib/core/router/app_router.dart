@@ -82,6 +82,9 @@ class AppRouter {
   static final GlobalKey<NavigatorState> _rootNavigatorKey =
       GlobalKey<NavigatorState>();
 
+  /// 获取根导航器 Key（用于通知点击导航等场景）
+  static GlobalKey<NavigatorState> get navigatorKey => _rootNavigatorKey;
+
   /// 路由配置
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,

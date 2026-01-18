@@ -8,6 +8,49 @@ import '../data/repositories/event_repository.dart';
 import '../core/utils/rrule_parser.dart';
 import 'notification_service.dart';
 
+/// 通知 ID 生成工具类
+///
+/// 使用 FNV-1a 32-bit 哈希算法生成稳定的通知 ID。
+/// 提供静态方法供 ReminderManager 和 EventEditViewModel 共同使用，
+/// 确保通知 ID 生成算法的一致性。
+class NotificationIdGenerator {
+  NotificationIdGenerator._();
+
+  /// 生成通知 ID（使用 FNV-1a 风格哈希减少碰撞）
+  ///
+  /// 基于事件 UID、触发时间和实例日期生成唯一 ID。
+  /// 使用 FNV-1a 32-bit 哈希算法，比 Dart 内置 hashCode 有更好的分布性。
+  ///
+  /// [eventUid] - 事件唯一标识符
+  /// [triggerMinutes] - 提前触发时间（分钟）
+  /// [instanceDate] - 事件实例日期（用于重复事件）
+  ///
+  /// 注意：虽然哈希碰撞仍然可能发生，但概率已大大降低。
+  /// 对于日历应用的正常使用场景（几千个事件），碰撞概率可以忽略不计。
+  static int generate(
+    String eventUid,
+    int triggerMinutes,
+    DateTime instanceDate,
+  ) {
+    // 使用日期而非毫秒时间戳，减少不必要的变化
+    final dateKey = '${instanceDate.year}${instanceDate.month.toString().padLeft(2, '0')}${instanceDate.day.toString().padLeft(2, '0')}';
+    final input = '$eventUid|$triggerMinutes|$dateKey';
+
+    // FNV-1a 32-bit 哈希算法
+    // 参考: http://www.isthe.com/chongo/tech/comp/fnv/
+    int hash = 0x811c9dc5; // FNV offset basis
+    const int prime = 0x01000193; // FNV prime
+
+    for (int i = 0; i < input.length; i++) {
+      hash ^= input.codeUnitAt(i);
+      hash = (hash * prime) & 0xFFFFFFFF; // 保持在 32 位范围内
+    }
+
+    // 确保结果是正整数（Android 通知 ID 需要正整数）
+    return hash & 0x7FFFFFFF;
+  }
+}
+
 /// 提醒管理器 - 负责调度和维护事件提醒
 ///
 /// 使用并发控制确保同一时间只有一个刷新操作在进行，
@@ -41,36 +84,6 @@ class ReminderManager {
     debugPrint('ReminderManager initialized');
   }
 
-  /// 生成通知 ID（使用 FNV-1a 风格哈希减少碰撞）
-  ///
-  /// 基于事件 UID、触发时间和实例日期生成唯一 ID。
-  /// 使用 FNV-1a 32-bit 哈希算法，比 Dart 内置 hashCode 有更好的分布性。
-  ///
-  /// 注意：虽然哈希碰撞仍然可能发生，但概率已大大降低。
-  /// 对于日历应用的正常使用场景（几千个事件），碰撞概率可以忽略不计。
-  int _generateNotificationId(
-    String eventUid,
-    int triggerMinutes,
-    DateTime instanceDate,
-  ) {
-    // 使用日期而非毫秒时间戳，减少不必要的变化
-    final dateKey = '${instanceDate.year}${instanceDate.month.toString().padLeft(2, '0')}${instanceDate.day.toString().padLeft(2, '0')}';
-    final input = '$eventUid|$triggerMinutes|$dateKey';
-
-    // FNV-1a 32-bit 哈希算法
-    // 参考: http://www.isthe.com/chongo/tech/comp/fnv/
-    int hash = 0x811c9dc5; // FNV offset basis
-    const int prime = 0x01000193; // FNV prime
-
-    for (int i = 0; i < input.length; i++) {
-      hash ^= input.codeUnitAt(i);
-      hash = (hash * prime) & 0xFFFFFFFF; // 保持在 32 位范围内
-    }
-
-    // 确保结果是正整数（Android 通知 ID 需要正整数）
-    return hash & 0x7FFFFFFF;
-  }
-
   /// 为单个事件调度提醒
   ///
   /// [event] - 事件
@@ -91,7 +104,7 @@ class ReminderManager {
         continue;
       }
 
-      final notificationId = _generateNotificationId(
+      final notificationId = NotificationIdGenerator.generate(
         event.uid,
         reminder.triggerMinutes,
         eventStart,
@@ -169,7 +182,7 @@ class ReminderManager {
 
       for (final occurrence in occurrences) {
         for (final reminder in reminders) {
-          final notificationId = _generateNotificationId(
+          final notificationId = NotificationIdGenerator.generate(
             eventUid,
             reminder.triggerMinutes,
             occurrence,
@@ -180,7 +193,7 @@ class ReminderManager {
     } else {
       // 单次事件：取消基于事件开始时间的提醒
       for (final reminder in reminders) {
-        final notificationId = _generateNotificationId(
+        final notificationId = NotificationIdGenerator.generate(
           eventUid,
           reminder.triggerMinutes,
           event.dtStart,
