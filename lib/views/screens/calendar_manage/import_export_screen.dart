@@ -405,10 +405,11 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 获取已存在的事件 UID（如果需要跳过重复）
+      // 获取目标日历中已存在的事件 UID（如果需要跳过重复）
       Set<String>? existingUids;
       if (skipDuplicates) {
-        final existingEvents = await _eventRepository.getAllEvents();
+        // 只检查目标日历中的事件，而非所有日历
+        final existingEvents = await _eventRepository.getEventsByCalendarId(calendar.id);
         existingUids = existingEvents.map((e) => e.uid).toSet();
       }
 
