@@ -6,7 +6,7 @@ import '../data/models/recurrence_rule.dart';
 import '../data/repositories/event_repository.dart';
 import '../data/repositories/calendar_repository.dart';
 import '../core/constants/color_constants.dart';
-import '../services/reminder_manager.dart';
+import '../services/reminder_manager.dart' show ReminderManager, NotificationIdGenerator;
 
 /// 事件编辑 ViewModel
 class EventEditViewModel extends ChangeNotifier {
@@ -466,14 +466,18 @@ class EventEditViewModel extends ChangeNotifier {
 
   /// 保存提醒并返回提醒列表
   Future<List<ReminderModel>> _saveReminders(String eventUid) async {
-    // 生成通知 ID（使用事件 UID 的 hashCode 作为基础）
-    final baseNotificationId = eventUid.hashCode.abs() % 2147483647;
-
-    final reminders = _reminderMinutes.asMap().entries.map((entry) {
+    // 使用统一的 FNV-1a 算法生成通知 ID
+    // 注意：这里使用事件开始日期作为实例日期，对于重复事件，
+    // ReminderManager 会在调度时为每个实例重新计算 ID
+    final reminders = _reminderMinutes.map((minutes) {
       return ReminderModel(
         eventUid: eventUid,
-        triggerMinutes: entry.value,
-        notificationId: (baseNotificationId + entry.key) % 2147483647,
+        triggerMinutes: minutes,
+        notificationId: NotificationIdGenerator.generate(
+          eventUid,
+          minutes,
+          _dtStart,
+        ),
       );
     }).toList();
 

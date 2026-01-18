@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/color_constants.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../../data/models/calendar_model.dart';
 import '../../../data/repositories/calendar_repository.dart';
+import '../../../services/subscription_service.dart';
+import '../../../viewmodels/calendar_viewmodel.dart';
 
 /// 日历管理页面
 class CalendarManageScreen extends StatefulWidget {
@@ -256,6 +259,12 @@ class _CalendarManageScreenState extends State<CalendarManageScreen> {
   Future<void> _toggleVisibility(CalendarModel calendar) async {
     await _repository.toggleVisibility(calendar.id);
     _loadCalendars();
+
+    // 通知 CalendarViewModel 更新可见日历列表和事件
+    if (mounted) {
+      final calendarViewModel = context.read<CalendarViewModel>();
+      calendarViewModel.refreshEvents();
+    }
   }
 
   Future<void> _setDefault(CalendarModel calendar) async {
@@ -267,7 +276,38 @@ class _CalendarManageScreenState extends State<CalendarManageScreen> {
   }
 
   Future<void> _syncCalendar(CalendarModel calendar) async {
-    SnackBarHelper.show(context, '同步功能开发中...');
+    if (!calendar.isSubscription) {
+      SnackBarHelper.show(context, '本地日历无需同步');
+      return;
+    }
+
+    // 显示同步中提示
+    SnackBarHelper.show(context, '正在同步「${calendar.name}」...');
+
+    try {
+      final subscriptionService = SubscriptionService();
+      final result = await subscriptionService.syncSubscription(calendar.id);
+
+      if (mounted) {
+        if (result.success) {
+          SnackBarHelper.showSuccess(
+            context,
+            '同步完成: 新增 ${result.addedCount}，更新 ${result.updatedCount}，删除 ${result.deletedCount}',
+          );
+          _loadCalendars();
+
+          // 同步完成后刷新日历视图
+          final calendarViewModel = context.read<CalendarViewModel>();
+          calendarViewModel.refreshEvents();
+        } else {
+          SnackBarHelper.showError(context, '同步失败: ${result.error}');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackBarHelper.showError(context, '同步失败: $e');
+      }
+    }
   }
 
   void _showCreateDialog() {

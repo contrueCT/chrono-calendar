@@ -231,8 +231,17 @@ class NotificationService {
       }
       return false;
     } else if (Platform.isIOS) {
-      // iOS 没有直接检查权限的方法，尝试请求并返回结果
-      return true;
+      // 检查 iOS 通知权限状态
+      final iosPlugin = _notifications
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>();
+
+      if (iosPlugin != null) {
+        final settings = await iosPlugin.checkPermissions();
+        // 检查是否至少有一种通知方式被允许
+        return settings?.isEnabled ?? false;
+      }
+      return false;
     }
     return false;
   }

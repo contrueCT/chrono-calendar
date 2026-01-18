@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
 import '../../../core/router/app_router.dart';
+import '../../../services/permission_service.dart';
 import '../calendar/month_view_screen.dart';
 import '../calendar/week_view_screen.dart';
 import '../calendar/day_view_screen.dart';
@@ -22,8 +23,33 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeScreenContent extends StatelessWidget {
+class _HomeScreenContent extends StatefulWidget {
   const _HomeScreenContent();
+
+  @override
+  State<_HomeScreenContent> createState() => _HomeScreenContentState();
+}
+
+class _HomeScreenContentState extends State<_HomeScreenContent> {
+  bool _hasRequestedPermissions = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 延迟请求权限，避免影响启动速度
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestPermissionsIfNeeded();
+    });
+  }
+
+  /// 请求必要的权限（通知、精确闹钟等）
+  Future<void> _requestPermissionsIfNeeded() async {
+    if (_hasRequestedPermissions) return;
+    _hasRequestedPermissions = true;
+
+    final permissionService = PermissionService();
+    await permissionService.requestAllPermissions(context);
+  }
 
   @override
   Widget build(BuildContext context) {
