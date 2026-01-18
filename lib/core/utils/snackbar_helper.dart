@@ -8,7 +8,7 @@ class SnackBarHelper {
     BuildContext context,
     String message, {
     Color? backgroundColor,
-    Duration duration = const Duration(milliseconds: 1500),
+    Duration duration = const Duration(seconds: 2),
     String? actionLabel,
     VoidCallback? onAction,
   }) {
@@ -19,13 +19,13 @@ class SnackBarHelper {
         duration: duration,
         backgroundColor: backgroundColor,
         behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: actionLabel ?? '✕',
-          textColor: Colors.white70,
-          onPressed: onAction ?? () {
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          },
-        ),
+        action: actionLabel != null
+            ? SnackBarAction(
+                label: actionLabel,
+                textColor: Colors.white,
+                onPressed: onAction ?? () {},
+              )
+            : null,
       ),
     );
   }

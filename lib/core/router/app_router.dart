@@ -491,9 +491,9 @@ extension RouterExtension on BuildContext {
       params.add('type=${type.name}');
     }
     if (params.isNotEmpty) {
-      go('${RoutePaths.scheduleCreate}?${params.join('&')}');
+      push('${RoutePaths.scheduleCreate}?${params.join('&')}');
     } else {
-      go(RoutePaths.scheduleCreate);
+      push(RoutePaths.scheduleCreate);
     }
   }
 

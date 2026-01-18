@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:gal/gal.dart';
 import 'package:intl/intl.dart';
 import '../data/models/event_model.dart';
 import '../data/models/share_template.dart';
@@ -66,6 +67,18 @@ class ShareService {
     }
   }
 
+  /// 保存图片到相册
+  /// 返回 true 表示保存成功
+  Future<bool> saveImageToGallery(File imageFile) async {
+    try {
+      await Gal.putImage(imageFile.path);
+      return true;
+    } catch (e) {
+      debugPrint('保存图片到相册失败: $e');
+      return false;
+    }
+  }
+
   /// 清理临时分享图片
   Future<void> cleanupTempImages() async {
     try {
@@ -120,21 +133,16 @@ class ShareCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 400,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        gradient: template.gradient,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        width: 400,
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          gradient: template.gradient,
+          // borderRadius 由外层 ClipRRect 处理，确保圆角外区域为透明
+        ),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -256,6 +264,7 @@ class ShareCardWidget extends StatelessWidget {
             ],
           ),
         ],
+        ),
       ),
     );
   }
@@ -330,21 +339,16 @@ class CountdownShareCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 400,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        gradient: template.gradient,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        width: 400,
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          gradient: template.gradient,
+          // borderRadius 由外层 ClipRRect 处理，确保圆角外区域为透明
+        ),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -414,6 +418,7 @@ class CountdownShareCardWidget extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
