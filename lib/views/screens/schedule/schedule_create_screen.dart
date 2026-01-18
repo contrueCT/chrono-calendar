@@ -4,11 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:lunar/lunar.dart';
 import '../../../data/models/schedule_type.dart';
 import '../../../data/models/event_model.dart';
+import '../../../data/models/calendar_model.dart';
 import '../../../data/models/countdown_model.dart';
 import '../../../data/models/todo_model.dart';
 import '../../../data/models/reminder_model.dart';
 import '../../../data/models/llm_config_model.dart';
 import '../../../data/repositories/event_repository.dart';
+import '../../../data/repositories/calendar_repository.dart';
 import '../../../services/countdown_service.dart';
 import '../../../services/todo_service.dart';
 import '../../../core/utils/lunar_utils.dart';
@@ -47,6 +49,11 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
   final TextEditingController _titleController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
+  // 日历相关
+  final CalendarRepository _calendarRepository = CalendarRepository();
+  List<CalendarModel> _calendars = [];
+  String? _selectedCalendarId;
+
   // 事件相关字段
   late DateTime _eventStartDate;
   late DateTime _eventEndDate;
@@ -57,7 +64,6 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
   String? _eventDescription;
   int? _eventColor;
   List<int> _eventReminders = [15];
-  String? _selectedCalendarId;
 
   // 倒计时相关字段
   late DateTime _countdownTargetDate;
@@ -109,6 +115,31 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
       _repeatYearly = true;
     } else if (widget.initialType == ScheduleType.important) {
       _countdownCategory = CountdownCategory.anniversary;
+    }
+
+    // 加载日历列表
+    _loadCalendars();
+  }
+
+  /// 加载日历列表并设置默认日历
+  Future<void> _loadCalendars() async {
+    final calendars = await _calendarRepository.getAllCalendars();
+    // 只显示本地日历（非订阅日历）
+    final localCalendars = calendars.where((c) => !c.isSubscription).toList();
+
+    if (mounted) {
+      setState(() {
+        _calendars = localCalendars;
+        // 设置默认选中的日历
+        if (_selectedCalendarId == null && localCalendars.isNotEmpty) {
+          // 优先选择默认日历
+          final defaultCalendar = localCalendars.firstWhere(
+            (c) => c.isDefault,
+            orElse: () => localCalendars.first,
+          );
+          _selectedCalendarId = defaultCalendar.id;
+        }
+      });
     }
   }
 
@@ -279,6 +310,12 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 日历选择
+        if (_calendars.isNotEmpty) ...[
+          _buildCalendarPicker(colorScheme),
+          const SizedBox(height: 16),
+        ],
+
         // 全天事件开关
         _buildAllDaySwitch(colorScheme),
         const SizedBox(height: 16),
@@ -349,6 +386,74 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
           Switch(
             value: _isAllDay,
             onChanged: (value) => setState(() => _isAllDay = value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarPicker(ColorScheme colorScheme) {
+    // 获取当前选中的日历
+    final selectedCalendar = _calendars.firstWhere(
+      (c) => c.id == _selectedCalendarId,
+      orElse: () => _calendars.first,
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          // 日历颜色标识
+          Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: Color(selectedCalendar.color),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              selectedCalendar.name,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+          // 下拉选择按钮
+          PopupMenuButton<String>(
+            icon: Icon(
+              Icons.arrow_drop_down,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            onSelected: (calendarId) {
+              setState(() => _selectedCalendarId = calendarId);
+            },
+            itemBuilder: (context) => _calendars.map((calendar) {
+              final isSelected = calendar.id == _selectedCalendarId;
+              return PopupMenuItem<String>(
+                value: calendar.id,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: Color(calendar.color),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(calendar.name)),
+                    if (isSelected)
+                      Icon(Icons.check, size: 18, color: colorScheme.primary),
+                  ],
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -970,8 +1075,24 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
   }
 
   Future<bool> _saveEvent() async {
+    // 确保有选中的日历
+    String calendarId = _selectedCalendarId ?? '';
+    if (calendarId.isEmpty) {
+      // 尝试获取默认日历
+      final defaultCalendar = await _calendarRepository.getDefaultCalendar();
+      if (defaultCalendar != null) {
+        calendarId = defaultCalendar.id;
+      } else {
+        // 没有可用日历，显示错误
+        if (mounted) {
+          SnackBarHelper.showError(context, '请先创建一个日历');
+        }
+        return false;
+      }
+    }
+
     final event = EventModel.create(
-      calendarId: _selectedCalendarId ?? 'default',
+      calendarId: calendarId,
       summary: _titleController.text.trim(),
       dtStart: _isAllDay
           ? DateTime(_eventStartDate.year, _eventStartDate.month, _eventStartDate.day)
