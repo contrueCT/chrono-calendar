@@ -77,3 +77,24 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/icons/
+
+# ========== 应用图标配置 ==========
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/app_icon.png"
+  min_sdk_android: 21
+
+  # Android 自适应图标
+  adaptive_icon_background: "#2563EB"
+  adaptive_icon_foreground: "assets/icons/app_icon_foreground.png"
+
+  # 移除 Alpha 通道 (iOS 要求)
+  remove_alpha_ios: true
+
+  # Web 图标
+  web:
+    generate: false
