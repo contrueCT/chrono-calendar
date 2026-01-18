@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
+import '../../../viewmodels/settings_viewmodel.dart';
 import '../../../data/models/event_model.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import '../../widgets/calendar/draggable_event.dart';
@@ -18,19 +19,30 @@ class WeekViewScreen extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        return Column(
-          children: [
-            // 周导航栏
-            _WeekNavigationBar(viewModel: viewModel),
+        return Consumer<SettingsViewModel>(
+          builder: (context, settings, _) {
+            final weekStartDay = settings.weekStartDay;
+            return Column(
+              children: [
+                // 周导航栏
+                _WeekNavigationBar(viewModel: viewModel),
 
-            // 日期选择条
-            _WeekDaySelector(viewModel: viewModel),
+                // 日期选择条
+                _WeekDaySelector(
+                  viewModel: viewModel,
+                  weekStartDay: weekStartDay,
+                ),
 
-            // 时间轴和事件区域
-            Expanded(
-              child: _WeekTimeGrid(viewModel: viewModel),
-            ),
-          ],
+                // 时间轴和事件区域
+                Expanded(
+                  child: _WeekTimeGrid(
+                    viewModel: viewModel,
+                    weekStartDay: weekStartDay,
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -113,8 +125,12 @@ class _WeekNavigationBar extends StatelessWidget {
 /// 周日期选择条
 class _WeekDaySelector extends StatelessWidget {
   final CalendarViewModel viewModel;
+  final int weekStartDay;
 
-  const _WeekDaySelector({required this.viewModel});
+  const _WeekDaySelector({
+    required this.viewModel,
+    required this.weekStartDay,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -200,8 +216,9 @@ class _WeekDaySelector extends StatelessWidget {
 
   List<DateTime> _getWeekDates() {
     final focusedDate = viewModel.focusedDate;
-    // 周一为一周开始
-    final weekStart = focusedDate.subtract(Duration(days: focusedDate.weekday - 1));
+    // 根据设置的起始日计算周开始
+    final daysFromStart = (focusedDate.weekday - weekStartDay + 7) % 7;
+    final weekStart = focusedDate.subtract(Duration(days: daysFromStart));
     return List.generate(7, (index) => weekStart.add(Duration(days: index)));
   }
 
@@ -214,8 +231,12 @@ class _WeekDaySelector extends StatelessWidget {
 /// 周时间网格
 class _WeekTimeGrid extends StatefulWidget {
   final CalendarViewModel viewModel;
+  final int weekStartDay;
 
-  const _WeekTimeGrid({required this.viewModel});
+  const _WeekTimeGrid({
+    required this.viewModel,
+    required this.weekStartDay,
+  });
 
   @override
   State<_WeekTimeGrid> createState() => _WeekTimeGridState();
@@ -302,7 +323,9 @@ class _WeekTimeGridState extends State<_WeekTimeGrid> {
 
   List<DateTime> _getWeekDates() {
     final focusedDate = widget.viewModel.focusedDate;
-    final weekStart = focusedDate.subtract(Duration(days: focusedDate.weekday - 1));
+    // 根据设置的起始日计算周开始
+    final daysFromStart = (focusedDate.weekday - widget.weekStartDay + 7) % 7;
+    final weekStart = focusedDate.subtract(Duration(days: daysFromStart));
     return List.generate(7, (index) => weekStart.add(Duration(days: index)));
   }
 

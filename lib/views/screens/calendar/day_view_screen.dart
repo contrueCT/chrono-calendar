@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
+import '../../../viewmodels/settings_viewmodel.dart';
 import '../../../data/models/event_model.dart';
 import '../../../core/utils/lunar_utils.dart';
 import '../../../core/utils/event_layout_helper.dart';
@@ -21,19 +22,24 @@ class DayViewScreen extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        return Column(
-          children: [
-            // 日期导航栏
-            _DayNavigationBar(viewModel: viewModel),
+        return Consumer<SettingsViewModel>(
+          builder: (context, settings, _) {
+            final showLunar = settings.showLunar;
+            return Column(
+              children: [
+                // 日期导航栏
+                _DayNavigationBar(viewModel: viewModel),
 
-            // 日期详情头部
-            _DayHeader(viewModel: viewModel),
+                // 日期详情头部
+                _DayHeader(viewModel: viewModel, showLunar: showLunar),
 
-            // 时间轴和事件区域
-            Expanded(
-              child: _DayTimeGrid(viewModel: viewModel),
-            ),
-          ],
+                // 时间轴和事件区域
+                Expanded(
+                  child: _DayTimeGrid(viewModel: viewModel),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -116,15 +122,19 @@ class _DayNavigationBar extends StatelessWidget {
 /// 日期详情头部（包含农历、天气等信息）
 class _DayHeader extends StatelessWidget {
   final CalendarViewModel viewModel;
+  final bool showLunar;
 
-  const _DayHeader({required this.viewModel});
+  const _DayHeader({
+    required this.viewModel,
+    required this.showLunar,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final date = viewModel.selectedDate;
-    final lunarInfo = LunarUtils.getLunarInfo(date);
+    final lunarInfo = showLunar ? LunarUtils.getLunarInfo(date) : null;
     final events = viewModel.selectedDateEvents;
 
     return Container(
@@ -180,37 +190,39 @@ class _DayHeader extends StatelessWidget {
                     color: colorScheme.onSurface,
                   ),
                 ),
-                const SizedBox(height: 4),
-                // 农历日期
-                Row(
-                  children: [
-                    Text(
-                      LunarUtils.getFullLunarString(date),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    if (lunarInfo.hasSpecialDay) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(4),
+                // 农历日期（根据设置显示）
+                if (showLunar && lunarInfo != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        LunarUtils.getFullLunarString(date),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colorScheme.onSurfaceVariant,
                         ),
-                        child: Text(
-                          _getSpecialDayName(lunarInfo),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.w500,
+                      ),
+                      if (lunarInfo.hasSpecialDay) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _getSpecialDayName(lunarInfo),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+                ],
               ],
             ),
           ),
