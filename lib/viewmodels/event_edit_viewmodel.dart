@@ -410,13 +410,19 @@ class EventEditViewModel extends ChangeNotifier {
       final reminders = await _saveReminders(event.uid);
       if (_isDisposed) return true;
 
-      // 调度通知提醒
-      await ReminderManager().updateRemindersForEvent(event, reminders);
+      // 调度通知提醒（失败不影响事件保存）
+      try {
+        await ReminderManager().updateRemindersForEvent(event, reminders);
+      } catch (reminderError, stackTrace) {
+        debugPrint('提醒调度失败（事件已保存）: $reminderError');
+        debugPrint('堆栈跟踪: $stackTrace');
+      }
 
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
       _errorMessage = isEditMode ? '更新事件失败' : '创建事件失败';
       debugPrint('保存事件失败: $e');
+      debugPrint('堆栈跟踪: $stackTrace');
       return false;
     } finally {
       _isSaving = false;

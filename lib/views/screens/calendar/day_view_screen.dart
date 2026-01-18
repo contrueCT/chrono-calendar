@@ -6,6 +6,7 @@ import '../../../viewmodels/calendar_viewmodel.dart';
 import '../../../data/models/event_model.dart';
 import '../../../core/utils/lunar_utils.dart';
 import '../../../core/utils/event_layout_helper.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../widgets/calendar/draggable_event.dart';
 
 /// 日视图页面
@@ -552,37 +553,28 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
 
     if (context.mounted) {
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('已更新: ${event.event.summary}'),
-            duration: const Duration(seconds: 2),
-            action: SnackBarAction(
-              label: '撤销',
-              onPressed: () async {
-                // 撤销：恢复原始时间
-                await viewModel.updateEventTime(
-                  EventInstance(
-                    event: event.event.copyWith(
-                      dtStart: newStart,
-                      dtEnd: newEnd,
-                    ),
-                    instanceStart: newStart,
-                    instanceEnd: newEnd,
-                  ),
-                  event.instanceStart,
-                  event.instanceEnd,
-                );
-              },
-            ),
-          ),
+        SnackBarHelper.show(
+          context,
+          '已更新: ${event.event.summary}',
+          actionLabel: '撤销',
+          onAction: () async {
+            // 撤销：恢复原始时间
+            await viewModel.updateEventTime(
+              EventInstance(
+                event: event.event.copyWith(
+                  dtStart: newStart,
+                  dtEnd: newEnd,
+                ),
+                instanceStart: newStart,
+                instanceEnd: newEnd,
+              ),
+              event.instanceStart,
+              event.instanceEnd,
+            );
+          },
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('更新失败，请重试'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        SnackBarHelper.showError(context, '更新失败，请重试');
       }
     }
   }

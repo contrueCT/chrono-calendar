@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../data/models/llm_config_model.dart';
 import '../../../services/llm_service.dart';
+import '../../../core/utils/snackbar_helper.dart';
 
 /// LLM 设置页面
 /// 管理 AI 服务配置，支持多个服务提供商
@@ -336,9 +337,7 @@ class _LLMSettingsScreenState extends State<LLMSettingsScreen> {
         await _llmService.setActiveConfig(config.id!);
         await _loadConfigs();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('已将 ${config.name} 设为当前使用')),
-          );
+          SnackBarHelper.show(context, '已将 ${config.name} 设为当前使用');
         }
         break;
       case 'test':
@@ -357,9 +356,7 @@ class _LLMSettingsScreenState extends State<LLMSettingsScreen> {
     final apiKey = await _llmService.getApiKey(config.id!);
     if (apiKey == null || apiKey.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('API Key 未配置')),
-        );
+        SnackBarHelper.showWarning(context, 'API Key 未配置');
       }
       return;
     }
@@ -384,14 +381,11 @@ class _LLMSettingsScreenState extends State<LLMSettingsScreen> {
 
     if (mounted) {
       Navigator.pop(context); // 关闭加载对话框
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.isSuccess ? '连接成功: ${result.message}' : '连接失败: ${result.message}',
-          ),
-          backgroundColor: result.isSuccess ? Colors.green : Colors.red,
-        ),
-      );
+      if (result.isSuccess) {
+        SnackBarHelper.showSuccess(context, '连接成功: ${result.message}');
+      } else {
+        SnackBarHelper.showError(context, '连接失败: ${result.message}');
+      }
     }
   }
 
@@ -412,9 +406,7 @@ class _LLMSettingsScreenState extends State<LLMSettingsScreen> {
               await _llmService.deleteConfig(config.id!);
               await _loadConfigs();
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('配置已删除')),
-                );
+                SnackBarHelper.show(context, '配置已删除');
               }
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
@@ -549,16 +541,11 @@ class _ConfigEditSheetState extends State<_ConfigEditSheet> {
     setState(() => _isTesting = false);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.isSuccess
-                ? '连接成功: ${result.message}'
-                : '连接失败: ${result.message}',
-          ),
-          backgroundColor: result.isSuccess ? Colors.green : Colors.red,
-        ),
-      );
+      if (result.isSuccess) {
+        SnackBarHelper.showSuccess(context, '连接成功: ${result.message}');
+      } else {
+        SnackBarHelper.showError(context, '连接失败: ${result.message}');
+      }
     }
   }
 
@@ -568,6 +555,8 @@ class _ConfigEditSheetState extends State<_ConfigEditSheet> {
     setState(() => _isLoading = true);
 
     try {
+      final isNewConfig = !_isEditing;
+
       final config = LLMConfigModel(
         id: widget.config?.id,
         name: _nameController.text.trim(),
@@ -577,20 +566,24 @@ class _ConfigEditSheetState extends State<_ConfigEditSheet> {
         createdAt: widget.config?.createdAt ?? DateTime.now(),
       );
 
-      await _llmService.saveConfig(config, _apiKeyController.text.trim());
+      final configId = await _llmService.saveConfig(config, _apiKeyController.text.trim());
+
+      // 新配置自动启用
+      if (isNewConfig) {
+        await _llmService.setActiveConfig(configId);
+      }
 
       if (mounted) {
         Navigator.pop(context);
         widget.onSaved();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isEditing ? '配置已更新' : '配置已添加')),
+        SnackBarHelper.show(
+          context,
+          isNewConfig ? '配置已添加并启用' : '配置已更新',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存失败: $e')),
-        );
+        SnackBarHelper.showError(context, '保存失败: $e');
       }
     } finally {
       setState(() => _isLoading = false);

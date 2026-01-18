@@ -11,6 +11,7 @@ import '../../../data/repositories/calendar_repository.dart';
 import '../../../data/repositories/event_repository.dart';
 import '../../../services/icalendar_service.dart';
 import '../../../services/reminder_manager.dart';
+import '../../../core/utils/snackbar_helper.dart';
 
 /// 导入导出页面
 class ImportExportScreen extends StatefulWidget {
@@ -730,21 +731,11 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ),
-    );
+    SnackBarHelper.showError(context, message);
   }
 
   void _showSuccess(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
-    );
+    SnackBarHelper.showSuccess(context, message);
   }
 }

@@ -8,6 +8,7 @@ import '../../../data/repositories/event_repository.dart';
 import '../../../data/repositories/calendar_repository.dart';
 import '../../../data/models/calendar_model.dart';
 import '../../../core/utils/lunar_utils.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../../services/reminder_manager.dart';
 
 /// 事件详情页面
@@ -593,9 +594,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('删除失败')),
-        );
+        SnackBarHelper.showError(context, '删除失败');
       }
     }
   }

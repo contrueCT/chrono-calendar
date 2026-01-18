@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/color_constants.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../../data/models/calendar_model.dart';
 import '../../../data/repositories/calendar_repository.dart';
 
@@ -37,9 +38,7 @@ class _CalendarManageScreenState extends State<CalendarManageScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载日历失败: $e')),
-        );
+        SnackBarHelper.showError(context, '加载日历失败: $e');
       }
     }
   }
@@ -263,16 +262,12 @@ class _CalendarManageScreenState extends State<CalendarManageScreen> {
     await _repository.setDefaultCalendar(calendar.id);
     _loadCalendars();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已将「${calendar.name}」设为默认日历')),
-      );
+      SnackBarHelper.showSuccess(context, '已将「${calendar.name}」设为默认日历');
     }
   }
 
   Future<void> _syncCalendar(CalendarModel calendar) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('同步功能开发中...')),
-    );
+    SnackBarHelper.show(context, '同步功能开发中...');
   }
 
   void _showCreateDialog() {
@@ -330,17 +325,13 @@ class _CalendarManageScreenState extends State<CalendarManageScreen> {
               onPressed: () async {
                 final name = nameController.text.trim();
                 if (name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('请输入日历名称')),
-                  );
+                  SnackBarHelper.showWarning(context, '请输入日历名称');
                   return;
                 }
                 final exists = await _repository.isNameExists(name);
                 if (exists) {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('日历名称已存在')),
-                    );
+                    SnackBarHelper.showWarning(context, '日历名称已存在');
                   }
                   return;
                 }
@@ -415,18 +406,14 @@ class _CalendarManageScreenState extends State<CalendarManageScreen> {
               onPressed: () async {
                 final name = nameController.text.trim();
                 if (name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('请输入日历名称')),
-                  );
+                  SnackBarHelper.showWarning(context, '请输入日历名称');
                   return;
                 }
                 if (name != calendar.name) {
                   final exists = await _repository.isNameExists(name, excludeId: calendar.id);
                   if (exists) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('日历名称已存在')),
-                      );
+                      SnackBarHelper.showWarning(context, '日历名称已存在');
                     }
                     return;
                   }
@@ -466,9 +453,7 @@ class _CalendarManageScreenState extends State<CalendarManageScreen> {
               if (mounted) {
                 Navigator.pop(context);
                 _loadCalendars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('已删除「${calendar.name}」')),
-                );
+                SnackBarHelper.showSuccess(context, '已删除「${calendar.name}」');
               }
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -565,29 +550,21 @@ class _CalendarManageScreenState extends State<CalendarManageScreen> {
                 final name = nameController.text.trim();
                 final url = urlController.text.trim();
                 if (name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('请输入日历名称')),
-                  );
+                  SnackBarHelper.showWarning(context, '请输入日历名称');
                   return;
                 }
                 if (url.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('请输入订阅 URL')),
-                  );
+                  SnackBarHelper.showWarning(context, '请输入订阅 URL');
                   return;
                 }
                 if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('请输入有效的 URL')),
-                  );
+                  SnackBarHelper.showWarning(context, '请输入有效的 URL');
                   return;
                 }
                 final exists = await _repository.isNameExists(name);
                 if (exists) {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('日历名称已存在')),
-                    );
+                    SnackBarHelper.showWarning(context, '日历名称已存在');
                   }
                   return;
                 }

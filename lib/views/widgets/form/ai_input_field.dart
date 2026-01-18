@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../../data/models/llm_config_model.dart';
 import '../../../services/llm_service.dart';
 
@@ -120,12 +121,7 @@ class _AIInputFieldState extends State<AIInputField>
         _inputController.clear();
         // 解析成功后收起
         _toggleExpanded();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('AI 解析成功，已填充表单'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        SnackBarHelper.showSuccess(context, 'AI 解析成功，已填充表单');
       } else {
         setState(() => _errorMessage = '解析结果无效，请补充更多信息');
       }
@@ -354,16 +350,14 @@ class _AIInputFieldState extends State<AIInputField>
   }
 
   void _showNoConfigHint() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('请先在设置中配置 AI 服务'),
-        action: SnackBarAction(
-          label: '去设置',
-          onPressed: () {
-            context.push(RoutePaths.llmSettings);
-          },
-        ),
-      ),
+    SnackBarHelper.show(
+      context,
+      '请先在设置中配置 AI 服务',
+      actionLabel: '去设置',
+      onAction: () {
+        context.push(RoutePaths.llmSettings);
+      },
+      duration: const Duration(seconds: 3),
     );
   }
 }

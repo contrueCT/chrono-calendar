@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../services/search_service.dart';
 import '../../../data/models/event_model.dart';
 import '../../../core/utils/lunar_utils.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import 'package:intl/intl.dart';
 
 /// 搜索页面
@@ -76,9 +77,7 @@ class _SearchScreenState extends State<SearchScreen> {
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('搜索出错: $e')),
-        );
+        SnackBarHelper.showError(context, '搜索出错: $e');
       }
     }
   }

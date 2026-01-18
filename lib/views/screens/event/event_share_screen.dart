@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/models/share_template.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../../services/share_service.dart';
 
 /// 事件分享页面 - 预览并分享事件卡片
@@ -173,25 +174,38 @@ class _EventShareScreenState extends State<EventShareScreen> {
                     ),
                   ),
 
-                  // 分享按钮
+                  // 保存和分享按钮
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: _isGenerating ? null : _handleShare,
-                        icon: _isGenerating
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.share),
-                        label: Text(_isGenerating ? '生成中...' : '分享图片'),
-                      ),
+                    child: Row(
+                      children: [
+                        // 保存按钮
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _isGenerating ? null : _handleSaveToGallery,
+                            icon: const Icon(Icons.save_alt),
+                            label: const Text('保存图片'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // 分享按钮
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _isGenerating ? null : _handleShare,
+                            icon: _isGenerating
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.share),
+                            label: Text(_isGenerating ? '生成中...' : '分享图片'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -267,6 +281,53 @@ class _EventShareScreenState extends State<EventShareScreen> {
     );
   }
 
+  /// 处理保存到相册
+  Future<void> _handleSaveToGallery() async {
+    if (_isGenerating) return;
+
+    setState(() {
+      _isGenerating = true;
+    });
+
+    try {
+      // 等待一帧确保 Widget 已渲染
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // 生成图片
+      final imageFile = await _shareService.generateShareImage(_repaintKey);
+
+      if (imageFile != null) {
+        // 保存到相册
+        final success = await _shareService.saveImageToGallery(imageFile);
+
+        if (mounted) {
+          if (success) {
+            SnackBarHelper.show(context, '图片已保存到相册');
+          } else {
+            SnackBarHelper.showError(context, '保存失败，请检查相册权限');
+          }
+        }
+
+        // 清理旧的临时文件
+        _shareService.cleanupTempImages();
+      } else {
+        if (mounted) {
+          SnackBarHelper.showError(context, '生成图片失败，请重试');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackBarHelper.showError(context, '保存失败: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+        });
+      }
+    }
+  }
+
   /// 处理分享
   Future<void> _handleShare() async {
     if (_isGenerating) return;
@@ -293,16 +354,12 @@ class _EventShareScreenState extends State<EventShareScreen> {
         _shareService.cleanupTempImages();
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('生成图片失败，请重试')),
-          );
+          SnackBarHelper.showError(context, '生成图片失败，请重试');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('分享失败: $e')),
-        );
+        SnackBarHelper.showError(context, '分享失败: $e');
       }
     } finally {
       if (mounted) {

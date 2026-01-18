@@ -5,6 +5,7 @@ import 'package:lunar/lunar.dart';
 import '../../../data/models/countdown_model.dart';
 import '../../../services/countdown_service.dart';
 import '../../../core/utils/lunar_utils.dart';
+import '../../../core/utils/snackbar_helper.dart';
 
 /// 倒计时编辑页面
 class CountdownEditScreen extends StatefulWidget {
@@ -98,9 +99,7 @@ class _CountdownEditScreenState extends State<CountdownEditScreen> {
       },
       failure: (error) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.userFriendlyMessage)),
-        );
+        SnackBarHelper.showError(context, error.userFriendlyMessage);
       },
     );
   }
@@ -568,9 +567,7 @@ class _CountdownEditScreenState extends State<CountdownEditScreen> {
     result.when(
       success: (_) => context.pop(true),
       failure: (error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.userFriendlyMessage)),
-        );
+        SnackBarHelper.showError(context, error.userFriendlyMessage);
       },
     );
   }
@@ -604,9 +601,7 @@ class _CountdownEditScreenState extends State<CountdownEditScreen> {
       result.when(
         success: (_) => context.pop(true),
         failure: (error) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error.userFriendlyMessage)),
-          );
+          SnackBarHelper.showError(context, error.userFriendlyMessage);
         },
       );
     }
