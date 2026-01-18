@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../services/search_service.dart';
 import '../../../data/models/event_model.dart';
+import '../../../data/models/countdown_model.dart';
+import '../../../data/models/todo_model.dart';
 import '../../../core/utils/lunar_utils.dart';
 import '../../../core/utils/snackbar_helper.dart';
 import 'package:intl/intl.dart';
@@ -19,7 +21,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  List<SearchResult> _searchResults = [];
+  List<UnifiedSearchResult> _searchResults = [];
   List<SearchHistoryItem> _searchHistory = [];
   List<String> _suggestions = [];
   bool _isLoading = false;
@@ -51,6 +53,7 @@ class _SearchScreenState extends State<SearchScreen> {
     if (query.trim().isEmpty) {
       setState(() {
         _searchResults = [];
+        _suggestions = [];
         _showHistory = true;
         _currentQuery = '';
       });
@@ -60,11 +63,12 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() {
       _isLoading = true;
       _showHistory = false;
+      _suggestions = [];  // 清空建议列表，确保显示搜索结果
       _currentQuery = query.trim();
     });
 
     try {
-      final results = await _searchService.searchEvents(query: query);
+      final results = await _searchService.searchAll(query: query);
       setState(() {
         _searchResults = results;
         _isLoading = false;
@@ -164,7 +168,7 @@ class _SearchScreenState extends State<SearchScreen> {
         controller: _searchController,
         focusNode: _searchFocusNode,
         decoration: InputDecoration(
-          hintText: '搜索事件...',
+          hintText: '搜索事件、倒计时、待办...',
           border: InputBorder.none,
           hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
         ),
@@ -289,7 +293,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '搜索事件标题、描述或地点',
+                    '搜索事件、倒计时或待办',
                     style: TextStyle(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -319,7 +323,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              '没有找到相关事件',
+              '没有找到相关内容',
               style: TextStyle(
                 color: colorScheme.onSurfaceVariant,
                 fontSize: 16,
@@ -338,44 +342,95 @@ class _SearchScreenState extends State<SearchScreen> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: _searchResults.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Text(
-              '找到 ${_searchResults.length} 个结果',
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          );
-        }
+    // 分组结果
+    final eventResults = _searchResults.whereType<EventSearchResult>().toList();
+    final countdownResults = _searchResults.whereType<CountdownSearchResult>().toList();
+    final todoResults = _searchResults.whereType<TodoSearchResult>().toList();
 
-        final result = _searchResults[index - 1];
-        return _SearchResultCard(
-          result: result,
-          query: _currentQuery,
-          colorScheme: colorScheme,
-          onTap: () => _onEventTap(result.event),
-        );
-      },
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        // 总结
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Text(
+            '找到 ${_searchResults.length} 个结果',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+
+        // 事件结果
+        if (eventResults.isNotEmpty) ...[
+          _buildSectionHeader('事件', eventResults.length, Icons.event, colorScheme),
+          ...eventResults.map((r) => _EventResultCard(
+                result: r,
+                query: _currentQuery,
+                colorScheme: colorScheme,
+                onTap: () => context.push('/event/${r.event.uid}'),
+              )),
+        ],
+
+        // 倒计时结果
+        if (countdownResults.isNotEmpty) ...[
+          _buildSectionHeader('倒计时', countdownResults.length, Icons.timer, colorScheme),
+          ...countdownResults.map((r) => _CountdownResultCard(
+                result: r,
+                query: _currentQuery,
+                colorScheme: colorScheme,
+                onTap: () => context.push('/countdown/${r.countdown.id}'),
+              )),
+        ],
+
+        // 待办结果
+        if (todoResults.isNotEmpty) ...[
+          _buildSectionHeader('待办', todoResults.length, Icons.check_circle_outline, colorScheme),
+          ...todoResults.map((r) => _TodoResultCard(
+                result: r,
+                query: _currentQuery,
+                colorScheme: colorScheme,
+                onTap: () => context.push('/todo/${r.todo.id}'),
+              )),
+        ],
+
+        // 底部间距
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title, int count, IconData icon, ColorScheme colorScheme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            '$title ($count)',
+            style: TextStyle(
+              fontSize: 14,
+              color: colorScheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// 搜索结果卡片
-class _SearchResultCard extends StatelessWidget {
-  final SearchResult result;
+/// 事件搜索结果卡片
+class _EventResultCard extends StatelessWidget {
+  final EventSearchResult result;
   final String query;
   final ColorScheme colorScheme;
   final VoidCallback onTap;
 
-  const _SearchResultCard({
+  const _EventResultCard({
     required this.result,
     required this.query,
     required this.colorScheme,
@@ -580,5 +635,328 @@ class _SearchResultCard extends StatelessWidget {
   String _truncateText(String text, int maxLength) {
     if (text.length <= maxLength) return text;
     return '${text.substring(0, maxLength)}...';
+  }
+}
+
+/// 倒计时搜索结果卡片
+class _CountdownResultCard extends StatelessWidget {
+  final CountdownSearchResult result;
+  final String query;
+  final ColorScheme colorScheme;
+  final VoidCallback onTap;
+
+  const _CountdownResultCard({
+    required this.result,
+    required this.query,
+    required this.colorScheme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final countdown = result.countdown;
+    final daysRemaining = countdown.getDaysRemaining();
+    final countdownColor = Color(countdown.color ?? 0xFF2563EB);
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      elevation: 0,
+      color: colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // 颜色指示条
+              Container(
+                width: 4,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: countdownColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // 内容
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 标题（高亮）
+                    _buildHighlightedText(
+                      countdown.title,
+                      query,
+                      TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                      colorScheme,
+                    ),
+                    const SizedBox(height: 4),
+                    // 目标日期
+                    Row(
+                      children: [
+                        Icon(Icons.timer, size: 14, color: colorScheme.onSurfaceVariant),
+                        const SizedBox(width: 4),
+                        Text(
+                          daysRemaining == 0
+                              ? '就是今天'
+                              : daysRemaining > 0
+                                  ? '还有 $daysRemaining 天'
+                                  : '已过 ${-daysRemaining} 天',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: daysRemaining == 0
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
+                            fontWeight: daysRemaining == 0 ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // 分类
+                    const SizedBox(height: 4),
+                    Text(
+                      countdown.getCategoryName(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHighlightedText(
+    String text,
+    String query,
+    TextStyle baseStyle,
+    ColorScheme colorScheme,
+  ) {
+    final searchService = SearchService();
+    final spans = searchService.highlightQuery(text, query);
+
+    return RichText(
+      text: TextSpan(
+        children: spans.map((span) {
+          return TextSpan(
+            text: span.text,
+            style: span.isHighlight
+                ? baseStyle.copyWith(
+                    backgroundColor: colorScheme.primaryContainer,
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  )
+                : baseStyle,
+          );
+        }).toList(),
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+/// 待办搜索结果卡片
+class _TodoResultCard extends StatelessWidget {
+  final TodoSearchResult result;
+  final String query;
+  final ColorScheme colorScheme;
+  final VoidCallback onTap;
+
+  const _TodoResultCard({
+    required this.result,
+    required this.query,
+    required this.colorScheme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final todo = result.todo;
+    final todoColor = Color(todo.color ?? 0xFF2563EB);
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      elevation: 0,
+      color: colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // 完成状态指示
+              Icon(
+                todo.isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: todo.isCompleted ? colorScheme.primary : todoColor,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              // 内容
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 标题（高亮，完成则划线）
+                    _buildHighlightedText(
+                      todo.title,
+                      query,
+                      TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: todo.isCompleted
+                            ? colorScheme.onSurface.withOpacity(0.5)
+                            : colorScheme.onSurface,
+                        decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
+                      ),
+                      colorScheme,
+                    ),
+                    // 匹配描述
+                    if (result.matchField == 'description' && todo.description != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.description, size: 14, color: colorScheme.primary),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: _buildHighlightedText(
+                              _truncateText(todo.description!, 50),
+                              query,
+                              TextStyle(
+                                fontSize: 13,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                              colorScheme,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    // 截止日期和优先级
+                    if (todo.dueDate != null || todo.priority > 0) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (todo.dueDate != null) ...[
+                            Icon(
+                              todo.isOverdue ? Icons.warning : Icons.schedule,
+                              size: 14,
+                              color: todo.isOverdue ? colorScheme.error : colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              DateFormat('MM月dd日').format(todo.dueDate!),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: todo.isOverdue ? colorScheme.error : colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            if (todo.isOverdue) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                '已逾期',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: colorScheme.error,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
+                          if (todo.priority > 0) ...[
+                            if (todo.dueDate != null) const SizedBox(width: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _getPriorityColor(todo.priority).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                todo.priorityEnum.symbol,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: _getPriorityColor(todo.priority),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getPriorityColor(int priority) {
+    switch (priority) {
+      case 3:
+        return Colors.red;
+      case 2:
+        return Colors.orange;
+      case 1:
+        return Colors.blue;
+      default:
+        return colorScheme.onSurfaceVariant;
+    }
+  }
+
+  String _truncateText(String text, int maxLength) {
+    if (text.length <= maxLength) return text;
+    return '${text.substring(0, maxLength)}...';
+  }
+
+  Widget _buildHighlightedText(
+    String text,
+    String query,
+    TextStyle baseStyle,
+    ColorScheme colorScheme,
+  ) {
+    final searchService = SearchService();
+    final spans = searchService.highlightQuery(text, query);
+
+    return RichText(
+      text: TextSpan(
+        children: spans.map((span) {
+          return TextSpan(
+            text: span.text,
+            style: span.isHighlight
+                ? baseStyle.copyWith(
+                    backgroundColor: colorScheme.primaryContainer,
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  )
+                : baseStyle,
+          );
+        }).toList(),
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
   }
 }

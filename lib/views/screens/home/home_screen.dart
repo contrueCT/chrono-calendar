@@ -30,7 +30,7 @@ class _HomeScreenContent extends StatefulWidget {
   State<_HomeScreenContent> createState() => _HomeScreenContentState();
 }
 
-class _HomeScreenContentState extends State<_HomeScreenContent> {
+class _HomeScreenContentState extends State<_HomeScreenContent> with RouteAware {
   bool _hasRequestedPermissions = false;
 
   @override
@@ -40,6 +40,31 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _requestPermissionsIfNeeded();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 订阅路由观察器
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      AppRouter.routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    // 取消订阅路由观察器
+    AppRouter.routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    // 当从其他页面返回到本页面时调用
+    // 刷新日历数据以反映在其他页面可能做的修改
+    final viewModel = context.read<CalendarViewModel>();
+    viewModel.refreshEvents();
   }
 
   /// 请求必要的权限（通知、精确闹钟等）

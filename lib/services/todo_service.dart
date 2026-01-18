@@ -493,6 +493,33 @@ class TodoService {
     }
   }
 
+  // ==================== 搜索功能 ====================
+
+  /// 搜索待办（按标题和描述模糊匹配）
+  Future<Result<List<TodoModel>>> searchTodos(String query) async {
+    try {
+      final db = await _db.database;
+      final searchPattern = '%$query%';
+
+      final maps = await db.query(
+        DbConstants.tableTodos,
+        where: '${DbConstants.columnTodoTitle} LIKE ? OR ${DbConstants.columnTodoDescription} LIKE ?',
+        whereArgs: [searchPattern, searchPattern],
+        orderBy: '${DbConstants.columnTodoIsCompleted} ASC, '
+            '${DbConstants.columnTodoPriority} DESC, '
+            '${DbConstants.columnTodoDueDate} ASC',
+      );
+
+      final todos = maps.map((map) => TodoModel.fromMap(map)).toList();
+      return Result.success(todos);
+    } catch (e, s) {
+      debugPrint('搜索待办失败: $e');
+      return Result.failure(
+        DatabaseException.queryFailed(DbConstants.tableTodos, e, s),
+      );
+    }
+  }
+
   // ==================== 工具方法 ====================
 
   String _formatTime(DateTime time) {

@@ -1,7 +1,11 @@
 import '../core/constants/db_constants.dart';
 import '../data/models/event_model.dart';
+import '../data/models/countdown_model.dart';
+import '../data/models/todo_model.dart';
 import '../data/repositories/event_repository.dart';
 import 'database_service.dart';
+import 'countdown_service.dart';
+import 'todo_service.dart';
 
 /// 搜索历史记录模型
 class SearchHistoryItem {
@@ -36,7 +40,7 @@ class SearchHistoryItem {
   }
 }
 
-/// 搜索结果模型 - 包含事件和匹配信息
+/// 搜索结果模型 - 包含事件和匹配信息（保留兼容性）
 class SearchResult {
   final EventModel event;
   final String matchField; // 'summary', 'description', 'location'
@@ -49,6 +53,59 @@ class SearchResult {
   });
 }
 
+/// 搜索结果类型枚举
+enum SearchResultType {
+  event,
+  countdown,
+  todo,
+}
+
+/// 统一搜索结果基类
+sealed class UnifiedSearchResult {
+  final SearchResultType type;
+  final String matchField;
+  final String matchedText;
+
+  const UnifiedSearchResult({
+    required this.type,
+    required this.matchField,
+    required this.matchedText,
+  });
+}
+
+/// 事件搜索结果
+final class EventSearchResult extends UnifiedSearchResult {
+  final EventModel event;
+
+  const EventSearchResult({
+    required this.event,
+    required super.matchField,
+    required super.matchedText,
+  }) : super(type: SearchResultType.event);
+}
+
+/// 倒计时搜索结果
+final class CountdownSearchResult extends UnifiedSearchResult {
+  final CountdownModel countdown;
+
+  const CountdownSearchResult({
+    required this.countdown,
+    required super.matchField,
+    required super.matchedText,
+  }) : super(type: SearchResultType.countdown);
+}
+
+/// 待办搜索结果
+final class TodoSearchResult extends UnifiedSearchResult {
+  final TodoModel todo;
+
+  const TodoSearchResult({
+    required this.todo,
+    required super.matchField,
+    required super.matchedText,
+  }) : super(type: SearchResultType.todo);
+}
+
 /// 搜索服务 - 负责事件搜索和搜索历史管理
 class SearchService {
   static final SearchService _instance = SearchService._internal();
@@ -57,6 +114,8 @@ class SearchService {
 
   final DatabaseService _databaseService = DatabaseService();
   final EventRepository _eventRepository = EventRepository();
+  final CountdownService _countdownService = CountdownService();
+  final TodoService _todoService = TodoService();
 
   /// 最大搜索历史记录数
   static const int maxHistoryCount = 20;
@@ -114,6 +173,111 @@ class SearchService {
     }
 
     return results;
+  }
+
+  // ==================== 统一搜索 ====================
+
+  /// 统一搜索（事件、倒计时、待办）
+  /// [query] 搜索关键词
+  /// [searchEvents] 是否搜索事件（默认 true）
+  /// [searchCountdowns] 是否搜索倒计时（默认 true）
+  /// [searchTodos] 是否搜索待办（默认 true）
+  /// [saveHistory] 是否保存到搜索历史
+  Future<List<UnifiedSearchResult>> searchAll({
+    required String query,
+    bool searchEvents = true,
+    bool searchCountdowns = true,
+    bool searchTodos = true,
+    bool saveHistory = true,
+  }) async {
+    if (query.trim().isEmpty) {
+      return [];
+    }
+
+    final trimmedQuery = query.trim().toLowerCase();
+    final results = <UnifiedSearchResult>[];
+
+    // 并行执行搜索
+    final futures = <Future<List<UnifiedSearchResult>>>[];
+
+    if (searchEvents) {
+      futures.add(_searchEventsInternal(trimmedQuery));
+    }
+    if (searchCountdowns) {
+      futures.add(_searchCountdownsInternal(trimmedQuery));
+    }
+    if (searchTodos) {
+      futures.add(_searchTodosInternal(trimmedQuery));
+    }
+
+    final allResults = await Future.wait(futures);
+    for (final resultList in allResults) {
+      results.addAll(resultList);
+    }
+
+    // 保存搜索历史
+    if (saveHistory && results.isNotEmpty) {
+      await _saveSearchHistory(query.trim(), results.length);
+    }
+
+    return results;
+  }
+
+  /// 内部方法：搜索事件（返回 UnifiedSearchResult）
+  Future<List<EventSearchResult>> _searchEventsInternal(String query) async {
+    final events = await _eventRepository.searchEvents(query);
+    final results = <EventSearchResult>[];
+
+    for (final event in events) {
+      final matchInfo = _getMatchInfo(event, query);
+      if (matchInfo != null) {
+        results.add(EventSearchResult(
+          event: event,
+          matchField: matchInfo['field']!,
+          matchedText: matchInfo['text']!,
+        ));
+      }
+    }
+
+    return results;
+  }
+
+  /// 内部方法：搜索倒计时
+  Future<List<CountdownSearchResult>> _searchCountdownsInternal(String query) async {
+    final result = await _countdownService.searchCountdowns(query);
+    if (result.isFailure) return [];
+
+    return result.valueOrNull!.map((countdown) {
+      return CountdownSearchResult(
+        countdown: countdown,
+        matchField: 'title',
+        matchedText: countdown.title,
+      );
+    }).toList();
+  }
+
+  /// 内部方法：搜索待办
+  Future<List<TodoSearchResult>> _searchTodosInternal(String query) async {
+    final result = await _todoService.searchTodos(query);
+    if (result.isFailure) return [];
+
+    return result.valueOrNull!.map((todo) {
+      // 确定匹配字段
+      String matchField = 'title';
+      String matchedText = todo.title;
+
+      if (!todo.title.toLowerCase().contains(query) &&
+          todo.description?.toLowerCase().contains(query) == true) {
+        matchField = 'description';
+        matchedText = todo.description!;
+      }
+
+      return TodoSearchResult(
+        todo: todo,
+        matchField: matchField,
+        matchedText: matchedText,
+      );
+    }).toList();
   }
 
   /// 获取匹配信息

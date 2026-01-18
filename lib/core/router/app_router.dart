@@ -85,6 +85,10 @@ class AppRouter {
   /// 获取根导航器 Key（用于通知点击导航等场景）
   static GlobalKey<NavigatorState> get navigatorKey => _rootNavigatorKey;
 
+  /// 全局路由观察器（用于监听页面切换，实现返回时刷新等功能）
+  static final RouteObserver<ModalRoute<void>> routeObserver =
+      RouteObserver<ModalRoute<void>>();
+
   /// 路由配置
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -92,6 +96,7 @@ class AppRouter {
     debugLogDiagnostics: true,
     routes: _routes,
     errorBuilder: _errorBuilder,
+    observers: [routeObserver],
   );
 
   /// 路由列表
