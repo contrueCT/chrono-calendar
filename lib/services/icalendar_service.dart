@@ -146,15 +146,24 @@ class ICalendarService {
 
     // 解析状态
     EventStatus status = EventStatus.confirmed;
-    final statusStr = component['status'] as String?;
-    if (statusStr != null) {
-      switch (statusStr.toUpperCase()) {
-        case 'TENTATIVE':
-          status = EventStatus.tentative;
-          break;
-        case 'CANCELLED':
-          status = EventStatus.cancelled;
-          break;
+    final statusValue = component['status'];
+    if (statusValue != null) {
+      String? statusStr;
+      if (statusValue is IcsStatus) {
+        // icalendar_parser 返回 IcsStatus 枚举
+        statusStr = statusValue.name;
+      } else if (statusValue is String) {
+        statusStr = statusValue;
+      }
+      if (statusStr != null) {
+        switch (statusStr.toUpperCase()) {
+          case 'TENTATIVE':
+            status = EventStatus.tentative;
+            break;
+          case 'CANCELLED':
+            status = EventStatus.cancelled;
+            break;
+        }
       }
     }
 
