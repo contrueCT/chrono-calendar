@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
+import '../../../viewmodels/settings_viewmodel.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/models/calendar_display_item.dart';
 import '../../widgets/calendar/calendar_cell.dart';
@@ -25,11 +26,21 @@ class MonthViewScreen extends StatelessWidget {
             _MonthNavigationBar(viewModel: viewModel),
 
             // 星期标题行
-            const _WeekdayHeader(),
+            Consumer<SettingsViewModel>(
+              builder: (context, settings, _) => _WeekdayHeader(
+                weekStartDay: settings.weekStartDay,
+              ),
+            ),
 
             // 日历网格
             Expanded(
-              child: _MonthGrid(viewModel: viewModel),
+              child: Consumer<SettingsViewModel>(
+                builder: (context, settings, _) => _MonthGrid(
+                  viewModel: viewModel,
+                  showLunar: settings.showLunar,
+                  weekStartDay: settings.weekStartDay,
+                ),
+              ),
             ),
           ],
         );
@@ -113,27 +124,33 @@ class _MonthNavigationBar extends StatelessWidget {
 
 /// 星期标题行
 class _WeekdayHeader extends StatelessWidget {
-  const _WeekdayHeader();
+  final int weekStartDay;
 
-  static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+  const _WeekdayHeader({required this.weekStartDay});
+
+  // 周一到周日的标签，索引对应 DateTime.weekday - 1
+  static const _weekdayLabels = ['一', '二', '三', '四', '五', '六', '日'];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    // 根据起始日重新排列星期标签
+    final orderedWeekdays = _getOrderedWeekdays();
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       child: Row(
-        children: _weekdays.asMap().entries.map((entry) {
-          final index = entry.key;
-          final weekday = entry.value;
-          final isWeekend = index >= 5;
+        children: orderedWeekdays.map((entry) {
+          final dayOfWeek = entry['dayOfWeek'] as int; // 1-7
+          final label = entry['label'] as String;
+          final isWeekend = dayOfWeek == DateTime.saturday || dayOfWeek == DateTime.sunday;
 
           return Expanded(
             child: Center(
               child: Text(
-                weekday,
+                label,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -148,13 +165,33 @@ class _WeekdayHeader extends StatelessWidget {
       ),
     );
   }
+
+  /// 根据起始日获取排序后的星期列表
+  List<Map<String, dynamic>> _getOrderedWeekdays() {
+    final result = <Map<String, dynamic>>[];
+    for (int i = 0; i < 7; i++) {
+      // 计算当前位置对应的星期几 (1-7)
+      int dayOfWeek = ((weekStartDay - 1 + i) % 7) + 1;
+      result.add({
+        'dayOfWeek': dayOfWeek,
+        'label': _weekdayLabels[dayOfWeek - 1],
+      });
+    }
+    return result;
+  }
 }
 
 /// 月历网格
 class _MonthGrid extends StatelessWidget {
   final CalendarViewModel viewModel;
+  final bool showLunar;
+  final int weekStartDay;
 
-  const _MonthGrid({required this.viewModel});
+  const _MonthGrid({
+    required this.viewModel,
+    required this.showLunar,
+    required this.weekStartDay,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -211,7 +248,7 @@ class _MonthGrid extends StatelessWidget {
                     isInCurrentMonth: viewModel.isInCurrentMonth(date),
                     items: viewModel.getItemsForDate(date),
                     onTap: () => viewModel.selectDate(date),
-                    showLunar: true,
+                    showLunar: showLunar,
                   ),
                 );
               }).toList(),
@@ -233,12 +270,13 @@ class _MonthGrid extends StatelessWidget {
     final lastDayOfMonth = DateTime(year, month + 1, 0);
 
     // 计算需要显示的第一天（上月的日期）
-    // 周一为一周开始
-    int daysBeforeFirst = firstDayOfMonth.weekday - 1;
+    // 根据设置的起始日计算偏移
+    int daysBeforeFirst = (firstDayOfMonth.weekday - weekStartDay + 7) % 7;
     final firstVisibleDate = firstDayOfMonth.subtract(Duration(days: daysBeforeFirst));
 
     // 计算需要显示的最后一天（下月的日期）
-    int daysAfterLast = 7 - lastDayOfMonth.weekday;
+    // 计算当月最后一天距离该周结束还有几天
+    int daysAfterLast = (weekStartDay - 1 - lastDayOfMonth.weekday + 7) % 7;
     final lastVisibleDate = lastDayOfMonth.add(Duration(days: daysAfterLast));
 
     // 生成日期列表
