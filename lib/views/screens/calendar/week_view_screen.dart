@@ -256,9 +256,21 @@ class _WeekTimeGridState extends State<_WeekTimeGrid> {
     final colorScheme = theme.colorScheme;
     final weekDates = _getWeekDates();
 
-    return SingleChildScrollView(
-      controller: _scrollController,
-      child: SizedBox(
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity != null) {
+          if (details.primaryVelocity! < -300) {
+            // 向左滑动 → 下一周
+            widget.viewModel.goToNext();
+          } else if (details.primaryVelocity! > 300) {
+            // 向右滑动 → 上一周
+            widget.viewModel.goToPrevious();
+          }
+        }
+      },
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        child: SizedBox(
         height: (endHour - startHour) * hourHeight,
         child: Stack(
           children: [
@@ -282,6 +294,7 @@ class _WeekTimeGridState extends State<_WeekTimeGrid> {
             // 当前时间指示线
             _buildCurrentTimeIndicator(colorScheme),
           ],
+        ),
         ),
       ),
     );

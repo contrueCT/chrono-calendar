@@ -497,6 +497,21 @@ extension RouterExtension on BuildContext {
     }
   }
 
+  /// 跳转到统一日程创建（异步，可等待返回值）
+  Future<T?> pushScheduleCreate<T>({DateTime? date, ScheduleType? type}) {
+    final params = <String>[];
+    if (date != null) {
+      params.add('date=${date.toIso8601String()}');
+    }
+    if (type != null) {
+      params.add('type=${type.name}');
+    }
+    final path = params.isNotEmpty
+        ? '${RoutePaths.scheduleCreate}?${params.join('&')}'
+        : RoutePaths.scheduleCreate;
+    return push<T>(path);
+  }
+
   /// 跳转到搜索
   void goSearch() => go(RoutePaths.search);
 

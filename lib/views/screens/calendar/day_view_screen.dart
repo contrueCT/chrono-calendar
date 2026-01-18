@@ -311,34 +311,47 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
     final allDayEvents = events.where((e) => e.event.isAllDay).toList();
     final timedEvents = events.where((e) => !e.event.isAllDay).toList();
 
-    return Column(
-      children: [
-        // 全天事件区域
-        if (allDayEvents.isNotEmpty) _buildAllDaySection(allDayEvents, colorScheme),
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity != null) {
+          if (details.primaryVelocity! < -300) {
+            // 向左滑动 → 下一天
+            widget.viewModel.goToNext();
+          } else if (details.primaryVelocity! > 300) {
+            // 向右滑动 → 上一天
+            widget.viewModel.goToPrevious();
+          }
+        }
+      },
+      child: Column(
+        children: [
+          // 全天事件区域
+          if (allDayEvents.isNotEmpty) _buildAllDaySection(allDayEvents, colorScheme),
 
-        // 时间轴
-        Expanded(
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            child: SizedBox(
-              height: (endHour - startHour) * hourHeight,
-              child: Stack(
-                children: [
-                  // 时间网格背景
-                  _buildTimeGrid(colorScheme),
+          // 时间轴
+          Expanded(
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              child: SizedBox(
+                height: (endHour - startHour) * hourHeight,
+                child: Stack(
+                  children: [
+                    // 时间网格背景
+                    _buildTimeGrid(colorScheme),
 
-                  // 事件块（使用布局辅助类处理重叠）
-                  ..._buildEventBlocks(timedEvents, colorScheme),
+                    // 事件块（使用布局辅助类处理重叠）
+                    ..._buildEventBlocks(timedEvents, colorScheme),
 
-                  // 当前时间指示线
-                  if (widget.viewModel.isToday(widget.viewModel.selectedDate))
-                    _buildCurrentTimeIndicator(colorScheme),
-                ],
+                    // 当前时间指示线
+                    if (widget.viewModel.isToday(widget.viewModel.selectedDate))
+                      _buildCurrentTimeIndicator(colorScheme),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

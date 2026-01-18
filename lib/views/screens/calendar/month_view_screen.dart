@@ -158,24 +158,37 @@ class _MonthGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Column(
-          children: [
-            // 日历网格
-            Expanded(
-              flex: 2,
-              child: _buildCalendarGrid(context, constraints),
-            ),
-
-            // 选中日期的事件列表
-            Expanded(
-              flex: 1,
-              child: _SelectedDateEvents(viewModel: viewModel),
-            ),
-          ],
-        );
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity != null) {
+          if (details.primaryVelocity! < -300) {
+            // 向左滑动 → 下一月
+            viewModel.goToNext();
+          } else if (details.primaryVelocity! > 300) {
+            // 向右滑动 → 上一月
+            viewModel.goToPrevious();
+          }
+        }
       },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Column(
+            children: [
+              // 日历网格
+              Expanded(
+                flex: 2,
+                child: _buildCalendarGrid(context, constraints),
+              ),
+
+              // 选中日期的事件列表
+              Expanded(
+                flex: 1,
+                child: _SelectedDateEvents(viewModel: viewModel),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 

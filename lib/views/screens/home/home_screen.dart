@@ -220,10 +220,14 @@ class _HomeScreenContent extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
+          onTap: () async {
             // 使用选中的日期作为初始日期，跳转到统一的新建页面
             final date = viewModel.selectedDate;
-            context.goScheduleCreate(date: date);
+            final result = await context.pushScheduleCreate(date: date);
+            // 如果创建成功，刷新日历视图
+            if (result == true) {
+              viewModel.refreshEvents();
+            }
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
