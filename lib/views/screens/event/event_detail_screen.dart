@@ -471,8 +471,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  void _handleEdit(BuildContext context) {
-    context.push('/event/edit?uid=${_event!.uid}');
+  void _handleEdit(BuildContext context) async {
+    final result = await context.push('/event/edit?uid=${_event!.uid}');
+    // 编辑完成后重新加载事件数据
+    if (result == true && mounted) {
+      _loadEvent();
+    }
   }
 
   void _handleShare(BuildContext context) {
