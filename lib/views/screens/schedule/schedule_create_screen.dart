@@ -47,6 +47,8 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
 
   // 通用字段
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   // 日历相关
@@ -60,8 +62,6 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
   TimeOfDay _eventStartTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _eventEndTime = const TimeOfDay(hour: 10, minute: 0);
   bool _isAllDay = false;
-  String? _eventLocation;
-  String? _eventDescription;
   int? _eventColor;
   List<int> _eventReminders = [15];
 
@@ -168,6 +168,8 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _locationController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -361,6 +363,14 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
         ),
         const SizedBox(height: 24),
 
+        // 地点输入
+        _buildLocationField(colorScheme),
+        const SizedBox(height: 16),
+
+        // 备注输入
+        _buildDescriptionField(colorScheme),
+        const SizedBox(height: 24),
+
         // 颜色选择
         CompactColorPicker(
           selectedColor: _eventColor ?? 0xFF2563EB,
@@ -368,6 +378,66 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
         ),
         const SizedBox(height: 32),
       ],
+    );
+  }
+
+  Widget _buildLocationField(ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.location_on_outlined, size: 20, color: colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _locationController,
+              decoration: const InputDecoration(
+                hintText: '添加地点',
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDescriptionField(ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Icon(Icons.notes_outlined, size: 20, color: colorScheme.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                hintText: '添加备注',
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 12),
+              ),
+              maxLines: 3,
+              minLines: 1,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -977,8 +1047,8 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
       _eventEndTime = TimeOfDay.fromDateTime(draft.endTime!);
     }
     _isAllDay = draft.isAllDay;
-    _eventLocation = draft.location;
-    _eventDescription = draft.description;
+    _locationController.text = draft.location ?? '';
+    _descriptionController.text = draft.description ?? '';
     if (draft.reminderMinutes != null) {
       _eventReminders = [draft.reminderMinutes!];
     }
@@ -1113,8 +1183,8 @@ class _ScheduleCreateScreenState extends State<ScheduleCreateScreen> {
               _eventEndTime.minute,
             ),
       isAllDay: _isAllDay,
-      location: _eventLocation,
-      description: _eventDescription,
+      location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
+      description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
       color: _eventColor,
     );
 
