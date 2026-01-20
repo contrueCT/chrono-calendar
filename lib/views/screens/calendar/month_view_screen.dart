@@ -202,6 +202,7 @@ class _MonthGridState extends State<_MonthGrid> {
   static const int _initialPage = 1000; // 中间页，支持前后翻页
   int _currentPage = _initialPage;
   late DateTime _baseDate; // 初始页对应的日期
+  bool _isJumping = false; // 标记是否正在跳转，避免 onPageChanged 覆盖状态
 
   @override
   void initState() {
@@ -217,14 +218,19 @@ class _MonthGridState extends State<_MonthGrid> {
   @override
   void didUpdateWidget(_MonthGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 如果 focusedDate 从外部改变（如日期选择器），重置 PageView
+    // 如果 focusedDate 从外部改变（如点击"今天"按钮、日期选择器），重置 PageView
     final expectedDate = _getDateForPage(_currentPage);
     final currentFocused = widget.viewModel.focusedDate;
     if (expectedDate.year != currentFocused.year ||
         expectedDate.month != currentFocused.month) {
       _baseDate = DateTime(currentFocused.year, currentFocused.month, 1);
       _currentPage = _initialPage;
+      _isJumping = true; // 标记正在跳转
       _pageController.jumpToPage(_initialPage);
+      // 跳转完成后重置标记
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _isJumping = false;
+      });
     }
   }
 
@@ -250,10 +256,13 @@ class _MonthGridState extends State<_MonthGrid> {
           child: PageView.builder(
             controller: _pageController,
             onPageChanged: (index) {
-              final targetDate = _getDateForPage(index);
               _currentPage = index;
-              // 更新 ViewModel 的 focusedDate
-              widget.viewModel.jumpToDate(targetDate);
+              // 如果是程序跳转（如点击"今天"按钮），不覆盖 ViewModel 状态
+              if (_isJumping) return;
+
+              // 滑动翻页时，只更新 focusedDate，不改变 selectedDate
+              final targetDate = _getDateForPage(index);
+              widget.viewModel.setFocusedDate(targetDate);
             },
             itemBuilder: (context, index) {
               final displayDate = _getDateForPage(index);
