@@ -406,31 +406,46 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 获取目标日历中已存在的事件 UID（用于跳过重复）
-      Set<String>? targetCalendarUids;
-      if (skipDuplicates) {
-        final existingEvents = await _eventRepository.getEventsByCalendarId(calendar.id);
-        targetCalendarUids = existingEvents.map((e) => e.uid).toSet();
-      }
+      // 1. 获取目标日历中已存在的事件（用于内容比对和 UID 检查）
+      final targetEvents = await _eventRepository.getEventsByCalendarId(calendar.id);
+      final targetCalendarUids = targetEvents.map((e) => e.uid).toSet();
 
-      // 获取所有日历中已存在的事件 UID（用于检测 UID 冲突）
+      // 2. 构建内容指纹集合（summary + dtstart）用于检测内容重复
+      final targetContentFingerprints = targetEvents
+          .map((e) => '${e.summary}|${e.dtStart.millisecondsSinceEpoch}')
+          .toSet();
+
+      // 3. 获取其他日历中已存在的事件 UID（用于检测 UID 冲突）
       final allEvents = await _eventRepository.getAllEvents();
-      final allExistingUids = allEvents.map((e) => e.uid).toSet();
+      final otherCalendarUids = allEvents
+          .where((e) => e.calendarId != calendar.id)
+          .map((e) => e.uid)
+          .toSet();
 
-      // 解析并导入
+      // 4. 解析 ics 文件（不传 existingUids，统一在下面处理）
       final result = await _icalendarService.parseICalendar(
         content,
         targetCalendarId: calendar.id,
-        existingUids: targetCalendarUids, // 只跳过目标日历中的重复事件
+        existingUids: null,
       );
 
-      // 处理 UID 冲突：如果事件 UID 已存在于其他日历，生成新 UID
+      // 5. 处理每个事件
       final eventsToInsert = <EventModel>[];
       final uidMapping = <String, String>{}; // 原 UID -> 新 UID 的映射
+      int skippedByContent = 0;
 
       for (final event in result.events) {
-        if (allExistingUids.contains(event.uid)) {
-          // UID 冲突（存在于其他日历），生成新 UID
+        final contentFingerprint = '${event.summary}|${event.dtStart.millisecondsSinceEpoch}';
+
+        // 检查是否内容重复（基于 summary + dtstart）
+        if (skipDuplicates && targetContentFingerprints.contains(contentFingerprint)) {
+          skippedByContent++;
+          continue;
+        }
+
+        // 检查 UID 是否冲突（目标日历或其他日历）
+        if (targetCalendarUids.contains(event.uid) || otherCalendarUids.contains(event.uid)) {
+          // UID 冲突 → 生成新 UID
           final newUid = _generateUuid();
           uidMapping[event.uid] = newUid;
           eventsToInsert.add(event.copyWith(uid: newUid));
@@ -438,6 +453,9 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
           eventsToInsert.add(event);
         }
       }
+
+      // 更新跳过计数（用于结果显示）
+      final actualSkippedCount = result.skippedCount + skippedByContent;
 
       // 批量插入事件
       if (eventsToInsert.isNotEmpty) {
@@ -465,7 +483,11 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
 
       // 显示结果
       if (!mounted) return;
-      _showImportResult(result);
+      _showImportResultWithCount(
+        importedCount: eventsToInsert.length,
+        skippedCount: actualSkippedCount,
+        errors: result.errors,
+      );
     } catch (e) {
       _showError('导入失败: $e');
     } finally {
@@ -473,7 +495,11 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
     }
   }
 
-  void _showImportResult(ICalendarImportResult result) {
+  void _showImportResultWithCount({
+    required int importedCount,
+    required int skippedCount,
+    required List<String> errors,
+  }) {
     final theme = Theme.of(context);
 
     showDialog(
@@ -482,8 +508,8 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
         title: Row(
           children: [
             Icon(
-              result.errors.isEmpty ? Icons.check_circle : Icons.warning,
-              color: result.errors.isEmpty
+              errors.isEmpty ? Icons.check_circle : Icons.warning,
+              color: errors.isEmpty
                   ? Colors.green
                   : theme.colorScheme.error,
             ),
@@ -495,22 +521,22 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('成功导入 ${result.importedCount} 个日程'),
-            if (result.skippedCount > 0)
-              Text('跳过 ${result.skippedCount} 个重复日程'),
-            if (result.errors.isNotEmpty) ...[
+            Text('成功导入 $importedCount 个日程'),
+            if (skippedCount > 0)
+              Text('跳过 $skippedCount 个重复日程'),
+            if (errors.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
                 '错误信息：',
                 style: TextStyle(color: theme.colorScheme.error),
               ),
-              ...result.errors.take(3).map((e) => Text(
+              ...errors.take(3).map((e) => Text(
                     '• $e',
                     style: theme.textTheme.bodySmall,
                   )),
-              if (result.errors.length > 3)
+              if (errors.length > 3)
                 Text(
-                  '...还有 ${result.errors.length - 3} 个错误',
+                  '...还有 ${errors.length - 3} 个错误',
                   style: theme.textTheme.bodySmall,
                 ),
             ],
