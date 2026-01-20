@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:uuid/uuid.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
@@ -405,32 +406,59 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 获取目标日历中已存在的事件 UID（如果需要跳过重复）
-      Set<String>? existingUids;
+      // 获取目标日历中已存在的事件 UID（用于跳过重复）
+      Set<String>? targetCalendarUids;
       if (skipDuplicates) {
-        // 只检查目标日历中的事件，而非所有日历
         final existingEvents = await _eventRepository.getEventsByCalendarId(calendar.id);
-        existingUids = existingEvents.map((e) => e.uid).toSet();
+        targetCalendarUids = existingEvents.map((e) => e.uid).toSet();
       }
+
+      // 获取所有日历中已存在的事件 UID（用于检测 UID 冲突）
+      final allEvents = await _eventRepository.getAllEvents();
+      final allExistingUids = allEvents.map((e) => e.uid).toSet();
 
       // 解析并导入
       final result = await _icalendarService.parseICalendar(
         content,
         targetCalendarId: calendar.id,
-        existingUids: existingUids,
+        existingUids: targetCalendarUids, // 只跳过目标日历中的重复事件
       );
 
+      // 处理 UID 冲突：如果事件 UID 已存在于其他日历，生成新 UID
+      final eventsToInsert = <EventModel>[];
+      final uidMapping = <String, String>{}; // 原 UID -> 新 UID 的映射
+
+      for (final event in result.events) {
+        if (allExistingUids.contains(event.uid)) {
+          // UID 冲突（存在于其他日历），生成新 UID
+          final newUid = _generateUuid();
+          uidMapping[event.uid] = newUid;
+          eventsToInsert.add(event.copyWith(uid: newUid));
+        } else {
+          eventsToInsert.add(event);
+        }
+      }
+
       // 批量插入事件
-      if (result.events.isNotEmpty) {
-        await _eventRepository.insertEvents(result.events);
+      if (eventsToInsert.isNotEmpty) {
+        await _eventRepository.insertEvents(eventsToInsert);
 
         // 保存提醒并调度通知
         final reminderManager = ReminderManager();
-        for (final event in result.events) {
-          final eventReminders = result.reminders[event.uid];
+        for (final event in eventsToInsert) {
+          // 使用原始 UID 查找提醒（因为 result.reminders 使用的是原始 UID）
+          final originalUid = uidMapping.entries
+              .where((e) => e.value == event.uid)
+              .map((e) => e.key)
+              .firstOrNull ?? event.uid;
+          final eventReminders = result.reminders[originalUid];
           if (eventReminders != null && eventReminders.isNotEmpty) {
-            await _eventRepository.updateReminders(event.uid, eventReminders);
-            await reminderManager.updateRemindersForEvent(event, eventReminders);
+            // 更新提醒的 eventUid 为新的 UID
+            final updatedReminders = eventReminders
+                .map((r) => r.copyWith(eventUid: event.uid))
+                .toList();
+            await _eventRepository.updateReminders(event.uid, updatedReminders);
+            await reminderManager.updateRemindersForEvent(event, updatedReminders);
           }
         }
       }
@@ -729,6 +757,11 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
   }
 
   // ==================== 工具方法 ====================
+
+  /// 生成新的 UUID
+  String _generateUuid() {
+    return const Uuid().v4();
+  }
 
   void _showError(String message) {
     if (!mounted) return;
