@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../../viewmodels/settings_viewmodel.dart';
 
 /// 设置页面
@@ -380,9 +381,7 @@ class SettingsScreen extends StatelessWidget {
             onPressed: () {
               settings.resetSettings();
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('设置已重置')),
-              );
+              SnackBarHelper.show(context, '设置已重置');
             },
             child: const Text('确定'),
           ),

@@ -11,6 +11,7 @@ import '../../../data/repositories/calendar_repository.dart';
 import '../../../data/repositories/event_repository.dart';
 import '../../../services/icalendar_service.dart';
 import '../../../services/reminder_manager.dart';
+import '../../../core/utils/snackbar_helper.dart';
 
 /// 导入导出页面
 class ImportExportScreen extends StatefulWidget {
@@ -404,10 +405,11 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 获取已存在的事件 UID（如果需要跳过重复）
+      // 获取目标日历中已存在的事件 UID（如果需要跳过重复）
       Set<String>? existingUids;
       if (skipDuplicates) {
-        final existingEvents = await _eventRepository.getAllEvents();
+        // 只检查目标日历中的事件，而非所有日历
+        final existingEvents = await _eventRepository.getEventsByCalendarId(calendar.id);
         existingUids = existingEvents.map((e) => e.uid).toSet();
       }
 
@@ -730,21 +732,11 @@ class _ImportExportScreenState extends State<ImportExportScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ),
-    );
+    SnackBarHelper.showError(context, message);
   }
 
   void _showSuccess(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
-    );
+    SnackBarHelper.showSuccess(context, message);
   }
 }

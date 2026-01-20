@@ -117,10 +117,19 @@ class DatabaseService {
       }
     }
 
-    // 后续版本升级逻辑
-    // if (oldVersion < 3) {
-    //   // 执行 v2 -> v3 的迁移
-    // }
+    // v2 -> v3: 添加待办表
+    if (oldVersion < 3) {
+      debugPrint('执行 v2 -> v3 迁移：添加待办表');
+      try {
+        for (final sql in DbConstants.upgradeToV3Statements) {
+          await db.execute(sql);
+        }
+        debugPrint('待办表创建完成');
+      } catch (e) {
+        // 表可能已存在，忽略错误
+        debugPrint('创建待办表时出错（可能已存在）: $e');
+      }
+    }
   }
 
   /// 关闭数据库

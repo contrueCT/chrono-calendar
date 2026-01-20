@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/models/llm_config_model.dart';
 import '../../../viewmodels/event_edit_viewmodel.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../widgets/form/date_time_picker.dart';
 import '../../widgets/form/reminder_picker.dart';
 import '../../widgets/form/recurrence_picker.dart';
@@ -140,7 +141,7 @@ class _EventEditScreenContentState extends State<_EventEditScreenContent> {
           // AI 智能输入（仅在创建模式下显示）
           if (!viewModel.isEditMode)
             AIInputField(
-              onParsed: (draft) => _onAIParsed(viewModel, draft),
+              onParsed: (result) => _onScheduleParsed(context, viewModel, result),
             ),
 
           // 表单内容
@@ -240,8 +241,24 @@ class _EventEditScreenContentState extends State<_EventEditScreenContent> {
     );
   }
 
-  /// 处理 AI 解析结果
-  void _onAIParsed(EventEditViewModel viewModel, ParsedEventDraft draft) {
+  /// 处理 AI 解析结果（支持事件/倒计时/待办）
+  void _onScheduleParsed(
+    BuildContext context,
+    EventEditViewModel viewModel,
+    ParsedScheduleResult result,
+  ) {
+    // 此页面只处理事件类型，其他类型给出提示
+    if (result.type != 'event') {
+      SnackBarHelper.show(
+        context,
+        '此页面仅支持日程事件，请使用"新建日程"创建${result.type == 'countdown' ? '倒计时' : '待办'}',
+      );
+      return;
+    }
+
+    final draft = result.eventDraft;
+    if (draft == null) return;
+
     viewModel.fillFromParsedDraft(
       title: draft.title,
       startTime: draft.startTime,

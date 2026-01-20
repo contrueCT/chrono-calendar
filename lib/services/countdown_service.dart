@@ -265,4 +265,27 @@ class CountdownService {
       };
     });
   }
+
+  /// 搜索倒计时（按标题模糊匹配）
+  Future<Result<List<CountdownModel>>> searchCountdowns(String query) async {
+    try {
+      final db = await _db.database;
+      final searchPattern = '%$query%';
+
+      final maps = await db.query(
+        DbConstants.tableCountdowns,
+        where: '${DbConstants.columnCountdownTitle} LIKE ?',
+        whereArgs: [searchPattern],
+        orderBy: '${DbConstants.columnCountdownTargetDate} ASC',
+      );
+
+      final countdowns = maps.map((map) => CountdownModel.fromMap(map)).toList();
+      return Result.success(countdowns);
+    } catch (e, s) {
+      debugPrint('搜索倒计时失败: $e');
+      return Result.failure(
+        DatabaseException.queryFailed(DbConstants.tableCountdowns, e, s),
+      );
+    }
+  }
 }

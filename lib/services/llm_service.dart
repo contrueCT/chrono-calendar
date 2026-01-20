@@ -23,16 +23,49 @@ class LLMService {
 
 当前时间：{{current_time}}
 
-请提取以下信息，返回 JSON 格式：
+请判断用户意图并返回 JSON（三种类型之一）：
+
+**类型1 - 普通日程**（会议、约会、活动、考试等有具体时间段的事项）：
 {
-  "title": "事件标题（必填）",
-  "start_time": "开始时间 ISO8601 格式",
-  "end_time": "结束时间 ISO8601 格式（可选，默认1小时后）",
+  "type": "event",
+  "title": "事件标题",
+  "start_time": "ISO8601",
+  "end_time": "ISO8601（可选）",
   "is_all_day": false,
   "location": "地点（可选）",
   "description": "描述（可选）",
   "reminder_minutes": 15
 }
+
+**类型2 - 倒计时/纪念日**（生日、纪念日、重要日期、截止日期等）：
+{
+  "type": "countdown",
+  "title": "标题",
+  "target_date": "YYYY-MM-DD",
+  "category": "birthday|anniversary|holiday|deadline|other",
+  "repeat_yearly": true,
+  "is_lunar": false,
+  "lunar_date": "MM-DD（仅农历时）"
+}
+
+**类型3 - 待办事项**（需要完成的任务、购物清单等）：
+{
+  "type": "todo",
+  "title": "待办标题",
+  "due_date": "YYYY-MM-DD（可选）",
+  "due_time": "HH:mm（可选）",
+  "priority": 0,
+  "description": "详细描述（可选）"
+}
+
+优先级说明：0=无 1=低 2=中 3=高
+
+判断规则：
+- "生日"、"纪念日"、"周年"、"还有X天" → countdown
+- "会议"、"约会"、"开会"、"几点" → event
+- "买"、"购买"、"提醒我"、"记得"、"要做"、"完成" → todo
+- 如果是任务性质且没有明确时间段 → todo
+- 如果是活动性质且有明确时间段 → event
 
 规则：
 1. 如果没有明确时间，使用合理推断
@@ -229,6 +262,86 @@ class LLMService {
     }
   }
 
+  /// 使用 AI 解析自然语言输入为统一的日程结果（支持事件/倒计时/待办）
+  Future<LLMScheduleParseResult> parseSchedule(String input) async {
+    if (input.trim().isEmpty) {
+      return LLMScheduleParseResult.error('输入不能为空');
+    }
+
+    final config = await getActiveConfig();
+    if (config == null) {
+      return LLMScheduleParseResult.error('请先配置 AI 服务');
+    }
+
+    final apiKey = await getApiKey(config.id!);
+    if (apiKey == null || apiKey.isEmpty) {
+      return LLMScheduleParseResult.error('API Key 未配置');
+    }
+
+    try {
+      final systemPrompt = _systemPrompt.replaceAll(
+        '{{current_time}}',
+        DateTime.now().toIso8601String(),
+      );
+
+      final response = await _dio.post(
+        '${config.baseUrl}/chat/completions',
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 60),
+        ),
+        data: {
+          'model': config.model,
+          'messages': [
+            {'role': 'system', 'content': systemPrompt},
+            {'role': 'user', 'content': input},
+          ],
+          'temperature': 0.3,
+          'max_tokens': 500,
+        },
+      );
+
+      if (response.statusCode != 200) {
+        return LLMScheduleParseResult.error('API 请求失败: ${response.statusCode}');
+      }
+
+      final data = response.data;
+      final content = data['choices']?[0]?['message']?['content'] as String?;
+
+      if (content == null || content.isEmpty) {
+        return LLMScheduleParseResult.error('AI 返回内容为空');
+      }
+
+      debugPrint('LLM 原始响应: $content');
+
+      // 尝试解析 JSON
+      final jsonContent = _extractJson(content);
+      if (jsonContent == null) {
+        return LLMScheduleParseResult.error('无法解析 AI 返回的 JSON');
+      }
+
+      final json = jsonDecode(jsonContent) as Map<String, dynamic>;
+
+      // 检查是否有错误
+      if (json.containsKey('error')) {
+        return LLMScheduleParseResult.error(json['error'] as String);
+      }
+
+      final result = ParsedScheduleResult.fromJson(json);
+      return LLMScheduleParseResult.success(result);
+    } on DioException catch (e) {
+      debugPrint('LLM 请求异常: $e');
+      return LLMScheduleParseResult.error(_getDioErrorMessage(e));
+    } catch (e) {
+      debugPrint('LLM 解析异常: $e');
+      return LLMScheduleParseResult.error('解析失败: $e');
+    }
+  }
+
   /// 从响应中提取 JSON（处理可能的 markdown 代码块）
   String? _extractJson(String content) {
     // 尝试直接解析
@@ -290,7 +403,8 @@ class LLMService {
   // ==================== 连接测试 ====================
 
   /// 测试 LLM 服务连接
-  Future<LLMTestResult> testConnection(LLMConfigModel config, String apiKey) async {
+  Future<LLMTestResult> testConnection(
+      LLMConfigModel config, String apiKey) async {
     try {
       final response = await _dio.post(
         '${config.baseUrl}/chat/completions',
@@ -352,6 +466,27 @@ class LLMParseResult {
 
   factory LLMParseResult.error(String message) {
     return LLMParseResult._(isSuccess: false, errorMessage: message);
+  }
+}
+
+/// LLM 统一日程解析结果
+class LLMScheduleParseResult {
+  final bool isSuccess;
+  final ParsedScheduleResult? result;
+  final String? errorMessage;
+
+  const LLMScheduleParseResult._({
+    required this.isSuccess,
+    this.result,
+    this.errorMessage,
+  });
+
+  factory LLMScheduleParseResult.success(ParsedScheduleResult result) {
+    return LLMScheduleParseResult._(isSuccess: true, result: result);
+  }
+
+  factory LLMScheduleParseResult.error(String message) {
+    return LLMScheduleParseResult._(isSuccess: false, errorMessage: message);
   }
 }
 

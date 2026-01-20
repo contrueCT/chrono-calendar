@@ -1,8 +1,13 @@
 import 'package:flutter/foundation.dart';
 import '../data/models/event_model.dart';
+import '../data/models/countdown_model.dart';
+import '../data/models/todo_model.dart';
+import '../data/models/calendar_display_item.dart';
 import '../data/models/recurrence_rule.dart';
 import '../data/repositories/event_repository.dart';
 import '../data/repositories/calendar_repository.dart';
+import '../services/countdown_service.dart';
+import '../services/todo_service.dart';
 import '../core/utils/rrule_parser.dart';
 
 /// 日历视图模式
@@ -16,6 +21,8 @@ enum CalendarViewMode {
 class CalendarViewModel extends ChangeNotifier {
   final EventRepository _eventRepository;
   final CalendarRepository _calendarRepository;
+  final CountdownService _countdownService;
+  final TodoService _todoService;
 
   /// 是否已销毁
   bool _isDisposed = false;
@@ -27,8 +34,12 @@ class CalendarViewModel extends ChangeNotifier {
   CalendarViewModel({
     EventRepository? eventRepository,
     CalendarRepository? calendarRepository,
+    CountdownService? countdownService,
+    TodoService? todoService,
   })  : _eventRepository = eventRepository ?? EventRepository(),
-        _calendarRepository = calendarRepository ?? CalendarRepository() {
+        _calendarRepository = calendarRepository ?? CalendarRepository(),
+        _countdownService = countdownService ?? CountdownService(),
+        _todoService = todoService ?? TodoService() {
     _init();
   }
 
@@ -53,6 +64,12 @@ class CalendarViewModel extends ChangeNotifier {
   /// 事件列表（按日期分组）
   Map<DateTime, List<EventInstance>> _eventsMap = {};
   Map<DateTime, List<EventInstance>> get eventsMap => _eventsMap;
+
+  /// 倒计时列表（按日期分组）
+  Map<DateTime, List<CountdownDisplayItem>> _countdownsMap = {};
+
+  /// 待办列表（按日期分组）
+  Map<DateTime, List<TodoDisplayItem>> _todosMap = {};
 
   /// 可见日历 ID 列表
   List<String> _visibleCalendarIds = [];
@@ -238,7 +255,7 @@ class CalendarViewModel extends ChangeNotifier {
     }
   }
 
-  /// 加载当前范围内的事件
+  /// 加载当前范围内的事件、倒计时和待办
   ///
   /// [silent] 为 true 时不触发 notifyListeners（用于批量操作）
   Future<void> _loadEventsForCurrentRange({bool silent = false}) async {
@@ -249,6 +266,24 @@ class CalendarViewModel extends ChangeNotifier {
     }
 
     try {
+      // 并行加载事件、倒计时和待办
+      await Future.wait([
+        _loadEvents(),
+        _loadCountdowns(),
+        _loadTodos(),
+      ]);
+
+      if (!silent) {
+        _safeNotifyListeners();
+      }
+    } catch (e) {
+      debugPrint('加载日历数据失败: $e');
+    }
+  }
+
+  /// 加载事件
+  Future<void> _loadEvents() async {
+    try {
       // 获取范围内的事件
       final events = await _eventRepository.getEventsInRange(
         _rangeStart!,
@@ -258,13 +293,116 @@ class CalendarViewModel extends ChangeNotifier {
 
       // 展开重复事件并按日期分组
       _eventsMap = _expandAndGroupEvents(events, _rangeStart!, _rangeEnd!);
-
-      if (!silent) {
-        _safeNotifyListeners();
-      }
     } catch (e) {
       debugPrint('加载事件失败: $e');
     }
+  }
+
+  /// 加载倒计时
+  Future<void> _loadCountdowns() async {
+    try {
+      final result = await _countdownService.getAllCountdowns();
+      if (result.isFailure) {
+        debugPrint('加载倒计时失败: ${result.errorOrNull}');
+        return;
+      }
+
+      final countdowns = result.valueOrNull ?? [];
+      _countdownsMap = _groupCountdownsByDate(countdowns, _rangeStart!, _rangeEnd!);
+    } catch (e) {
+      debugPrint('加载倒计时失败: $e');
+    }
+  }
+
+  /// 加载待办
+  Future<void> _loadTodos() async {
+    try {
+      // 获取有截止日期的待办
+      final result = await _todoService.getAllTodos();
+      if (result.isFailure) {
+        debugPrint('加载待办失败: ${result.errorOrNull}');
+        return;
+      }
+
+      final todos = result.valueOrNull ?? [];
+      _todosMap = _groupTodosByDate(todos, _rangeStart!, _rangeEnd!);
+    } catch (e) {
+      debugPrint('加载待办失败: $e');
+    }
+  }
+
+  /// 按日期分组倒计时
+  Map<DateTime, List<CountdownDisplayItem>> _groupCountdownsByDate(
+    List<CountdownModel> countdowns,
+    DateTime rangeStart,
+    DateTime rangeEnd,
+  ) {
+    final Map<DateTime, List<CountdownDisplayItem>> result = {};
+
+    for (final countdown in countdowns) {
+      // 获取当前年份的目标日期
+      final targetDate = countdown.getNextTargetDate();
+      final dateKey = _normalizeDate(targetDate);
+
+      // 检查是否在范围内
+      if (dateKey.isBefore(rangeStart) || dateKey.isAfter(rangeEnd)) {
+        continue;
+      }
+
+      final displayItem = CountdownDisplayItem(
+        countdown: countdown,
+        instanceDate: targetDate,
+      );
+
+      result.putIfAbsent(dateKey, () => []);
+      result[dateKey]!.add(displayItem);
+    }
+
+    return result;
+  }
+
+  /// 按日期分组待办
+  Map<DateTime, List<TodoDisplayItem>> _groupTodosByDate(
+    List<TodoModel> todos,
+    DateTime rangeStart,
+    DateTime rangeEnd,
+  ) {
+    final Map<DateTime, List<TodoDisplayItem>> result = {};
+
+    for (final todo in todos) {
+      // 只处理有截止日期的待办
+      if (todo.dueDate == null) continue;
+
+      final dateKey = _normalizeDate(todo.dueDate!);
+
+      // 检查是否在范围内
+      if (dateKey.isBefore(rangeStart) || dateKey.isAfter(rangeEnd)) {
+        continue;
+      }
+
+      final displayItem = TodoDisplayItem(todo);
+
+      result.putIfAbsent(dateKey, () => []);
+      result[dateKey]!.add(displayItem);
+    }
+
+    // 按优先级和时间排序
+    for (final items in result.values) {
+      items.sort((a, b) {
+        // 未完成的排在前面
+        if (a.isCompleted != b.isCompleted) {
+          return a.isCompleted ? 1 : -1;
+        }
+        // 高优先级排在前面
+        if (a.priority != b.priority) {
+          return b.priority.compareTo(a.priority);
+        }
+        // 按时间排序
+        return a.startTime.compareTo(b.startTime);
+      });
+    }
+
+    return result;
   }
 
   /// 展开重复事件并按日期分组
@@ -346,8 +484,47 @@ class CalendarViewModel extends ChangeNotifier {
     return _eventsMap[dateKey] ?? [];
   }
 
+  /// 获取指定日期的倒计时
+  List<CountdownDisplayItem> getCountdownsForDate(DateTime date) {
+    final dateKey = _normalizeDate(date);
+    return _countdownsMap[dateKey] ?? [];
+  }
+
+  /// 获取指定日期的待办
+  List<TodoDisplayItem> getTodosForDate(DateTime date) {
+    final dateKey = _normalizeDate(date);
+    return _todosMap[dateKey] ?? [];
+  }
+
+  /// 获取指定日期的所有日历项（事件 + 倒计时 + 待办）
+  List<CalendarDisplayItem> getItemsForDate(DateTime date) {
+    final dateKey = _normalizeDate(date);
+
+    final List<CalendarDisplayItem> items = [];
+
+    // 添加倒计时（排在最前面）
+    final countdowns = _countdownsMap[dateKey] ?? [];
+    items.addAll(countdowns);
+
+    // 添加事件
+    final events = _eventsMap[dateKey] ?? [];
+    items.addAll(events.map((e) => EventDisplayItem(e)));
+
+    // 添加待办
+    final todos = _todosMap[dateKey] ?? [];
+    items.addAll(todos);
+
+    // 按类型和时间排序
+    items.sort(CalendarDisplayItemComparator.compareByTypeAndTime);
+
+    return items;
+  }
+
   /// 获取选中日期的事件
   List<EventInstance> get selectedDateEvents => getEventsForDate(_selectedDate);
+
+  /// 获取选中日期的所有日历项
+  List<CalendarDisplayItem> get selectedDateItems => getItemsForDate(_selectedDate);
 
   /// 检查指定日期是否有事件
   bool hasEventsOnDate(DateTime date) {
@@ -355,9 +532,31 @@ class CalendarViewModel extends ChangeNotifier {
     return _eventsMap.containsKey(dateKey) && _eventsMap[dateKey]!.isNotEmpty;
   }
 
+  /// 检查指定日期是否有倒计时
+  bool hasCountdownsOnDate(DateTime date) {
+    final dateKey = _normalizeDate(date);
+    return _countdownsMap.containsKey(dateKey) && _countdownsMap[dateKey]!.isNotEmpty;
+  }
+
+  /// 检查指定日期是否有待办
+  bool hasTodosOnDate(DateTime date) {
+    final dateKey = _normalizeDate(date);
+    return _todosMap.containsKey(dateKey) && _todosMap[dateKey]!.isNotEmpty;
+  }
+
+  /// 检查指定日期是否有任何日历项（事件、倒计时或待办）
+  bool hasItemsOnDate(DateTime date) {
+    return hasEventsOnDate(date) || hasCountdownsOnDate(date) || hasTodosOnDate(date);
+  }
+
   /// 获取指定日期的事件数量
   int getEventCountForDate(DateTime date) {
     return getEventsForDate(date).length;
+  }
+
+  /// 获取指定日期的所有日历项数量
+  int getItemCountForDate(DateTime date) {
+    return getItemsForDate(date).length;
   }
 
   // ==================== 日历可见性 ====================

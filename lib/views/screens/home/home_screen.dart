@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
 import '../../../core/router/app_router.dart';
+import '../../../services/permission_service.dart';
 import '../calendar/month_view_screen.dart';
 import '../calendar/week_view_screen.dart';
 import '../calendar/day_view_screen.dart';
@@ -22,8 +23,58 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeScreenContent extends StatelessWidget {
+class _HomeScreenContent extends StatefulWidget {
   const _HomeScreenContent();
+
+  @override
+  State<_HomeScreenContent> createState() => _HomeScreenContentState();
+}
+
+class _HomeScreenContentState extends State<_HomeScreenContent> with RouteAware {
+  bool _hasRequestedPermissions = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 延迟请求权限，避免影响启动速度
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestPermissionsIfNeeded();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 订阅路由观察器
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      AppRouter.routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    // 取消订阅路由观察器
+    AppRouter.routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    // 当从其他页面返回到本页面时调用
+    // 刷新日历数据以反映在其他页面可能做的修改
+    final viewModel = context.read<CalendarViewModel>();
+    viewModel.refreshEvents();
+  }
+
+  /// 请求必要的权限（通知、精确闹钟等）
+  Future<void> _requestPermissionsIfNeeded() async {
+    if (_hasRequestedPermissions) return;
+    _hasRequestedPermissions = true;
+
+    final permissionService = PermissionService();
+    await permissionService.requestAllPermissions(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -220,10 +271,14 @@ class _HomeScreenContent extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
-            // 使用选中的日期作为初始日期
+          onTap: () async {
+            // 使用选中的日期作为初始日期，跳转到统一的新建页面
             final date = viewModel.selectedDate;
-            context.push('/event/create?date=${date.toIso8601String()}');
+            final result = await context.pushScheduleCreate(date: date);
+            // 如果创建成功，刷新日历视图
+            if (result == true) {
+              viewModel.refreshEvents();
+            }
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -238,7 +293,7 @@ class _HomeScreenContent extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  '创建事件',
+                  '新建日程',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,
@@ -306,6 +361,16 @@ class _HomeScreenContent extends StatelessWidget {
                 isSelected: false,
                 onTap: () {
                   context.push(RoutePaths.countdown);
+                },
+                colorScheme: colorScheme,
+              ),
+              _buildNavItem(
+                context: context,
+                icon: Icons.checklist,
+                label: '待办',
+                isSelected: false,
+                onTap: () {
+                  context.push(RoutePaths.todo);
                 },
                 colorScheme: colorScheme,
               ),

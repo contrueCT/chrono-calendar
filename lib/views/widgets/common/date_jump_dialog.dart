@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lunar/lunar.dart';
 import '../../../core/utils/lunar_utils.dart';
 
 /// 日期跳转弹窗
@@ -486,9 +487,19 @@ class _DateJumpDialogState extends State<DateJumpDialog>
       // 公历
       resultDate = DateTime(_selectedYear, _selectedMonth, _selectedDay);
     } else {
-      // 农历 - 使用当前选中的公历日期（农历转换比较复杂，暂时简化处理）
-      // 真实实现需要农历到公历的转换
-      resultDate = DateTime(_selectedYear, _selectedMonth, _selectedDay);
+      // 农历 - 转换为公历日期
+      try {
+        final lunar = Lunar.fromYmd(
+          _lunarYear,
+          _lunarIsLeapMonth ? -_lunarMonth : _lunarMonth,
+          _lunarDay,
+        );
+        final solar = lunar.getSolar();
+        resultDate = DateTime(solar.getYear(), solar.getMonth(), solar.getDay());
+      } catch (e) {
+        // 转换失败时使用今天
+        resultDate = DateTime.now();
+      }
     }
 
     Navigator.pop(context, resultDate);

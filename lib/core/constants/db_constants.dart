@@ -4,7 +4,7 @@ class DbConstants {
 
   // ========== 数据库配置 ==========
   static const String databaseName = 'chrono_calendar.db';
-  static const int databaseVersion = 2;  // v2: 添加联合索引
+  static const int databaseVersion = 3;  // v3: 添加待办表
 
   // ========== 表名 ==========
   static const String tableCalendars = 'calendars';
@@ -15,6 +15,7 @@ class DbConstants {
   static const String tableSearchHistory = 'search_history';
   static const String tableWeatherCache = 'weather_cache';
   static const String tableLlmConfig = 'llm_config';
+  static const String tableTodos = 'todos';
 
   // ========== 日历表字段 ==========
   static const String columnCalendarId = 'id';
@@ -75,6 +76,21 @@ class DbConstants {
   static const String columnCountdownNotifyEnabled = 'notify_enabled';
   static const String columnCountdownNotifyDays = 'notify_days';
   static const String columnCountdownCreatedAt = 'created_at';
+
+  // ========== 待办表字段 ==========
+  static const String columnTodoId = 'id';
+  static const String columnTodoTitle = 'title';
+  static const String columnTodoDescription = 'description';
+  static const String columnTodoDueDate = 'due_date';
+  static const String columnTodoDueTime = 'due_time';
+  static const String columnTodoIsCompleted = 'is_completed';
+  static const String columnTodoCompletedAt = 'completed_at';
+  static const String columnTodoPriority = 'priority';
+  static const String columnTodoColor = 'color';
+  static const String columnTodoNotifyEnabled = 'notify_enabled';
+  static const String columnTodoNotifyMinutes = 'notify_minutes';
+  static const String columnTodoCreatedAt = 'created_at';
+  static const String columnTodoUpdatedAt = 'updated_at';
 
   // ========== 建表 SQL ==========
 
@@ -200,6 +216,37 @@ class DbConstants {
     CREATE INDEX idx_countdowns_target_date ON $tableCountdowns($columnCountdownTargetDate)
   ''';
 
+  /// 待办表
+  static const String createTodosTable = '''
+    CREATE TABLE $tableTodos (
+      $columnTodoId TEXT PRIMARY KEY,
+      $columnTodoTitle TEXT NOT NULL,
+      $columnTodoDescription TEXT,
+      $columnTodoDueDate INTEGER,
+      $columnTodoDueTime INTEGER,
+      $columnTodoIsCompleted INTEGER NOT NULL DEFAULT 0,
+      $columnTodoCompletedAt INTEGER,
+      $columnTodoPriority INTEGER NOT NULL DEFAULT 0,
+      $columnTodoColor INTEGER,
+      $columnTodoNotifyEnabled INTEGER NOT NULL DEFAULT 0,
+      $columnTodoNotifyMinutes INTEGER,
+      $columnTodoCreatedAt INTEGER NOT NULL,
+      $columnTodoUpdatedAt INTEGER NOT NULL
+    )
+  ''';
+
+  static const String createTodosDueDateIndex = '''
+    CREATE INDEX idx_todos_due_date ON $tableTodos($columnTodoDueDate)
+  ''';
+
+  static const String createTodosIsCompletedIndex = '''
+    CREATE INDEX idx_todos_is_completed ON $tableTodos($columnTodoIsCompleted)
+  ''';
+
+  static const String createTodosPriorityIndex = '''
+    CREATE INDEX idx_todos_priority ON $tableTodos($columnTodoPriority)
+  ''';
+
   // ========== LLM 配置表字段 ==========
   static const String columnLlmConfigId = 'id';
   static const String columnLlmConfigName = 'name';
@@ -268,10 +315,22 @@ class DbConstants {
     createEventCacheEventUidIndex,
     createCountdownsTable,
     createCountdownsTargetDateIndex,
+    createTodosTable,
+    createTodosDueDateIndex,
+    createTodosIsCompletedIndex,
+    createTodosPriorityIndex,
     createSearchHistoryTable,
     createSearchHistorySearchedAtIndex,
     createWeatherCacheTable,
     createWeatherCacheDateIndex,
     createLlmConfigTable,
+  ];
+
+  /// 获取数据库升级到 v3 的 SQL 语句（添加待办表）
+  static List<String> get upgradeToV3Statements => [
+    createTodosTable,
+    createTodosDueDateIndex,
+    createTodosIsCompletedIndex,
+    createTodosPriorityIndex,
   ];
 }

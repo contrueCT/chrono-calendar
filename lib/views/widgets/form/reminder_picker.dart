@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../data/models/reminder_model.dart';
+import '../../../core/utils/snackbar_helper.dart';
 
 /// 提醒选择器组件
 class ReminderPicker extends StatelessWidget {
@@ -77,9 +78,7 @@ class ReminderPicker extends StatelessWidget {
         .toList();
 
     if (availableOptions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已添加所有可用的提醒时间')),
-      );
+      SnackBarHelper.show(context, '已添加所有可用的提醒时间');
       return;
     }
 

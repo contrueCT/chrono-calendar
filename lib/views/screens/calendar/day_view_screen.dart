@@ -3,9 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../../../viewmodels/calendar_viewmodel.dart';
+import '../../../viewmodels/settings_viewmodel.dart';
 import '../../../data/models/event_model.dart';
 import '../../../core/utils/lunar_utils.dart';
 import '../../../core/utils/event_layout_helper.dart';
+import '../../../core/utils/snackbar_helper.dart';
 import '../../widgets/calendar/draggable_event.dart';
 
 /// 日视图页面
@@ -20,19 +22,24 @@ class DayViewScreen extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        return Column(
-          children: [
-            // 日期导航栏
-            _DayNavigationBar(viewModel: viewModel),
+        return Consumer<SettingsViewModel>(
+          builder: (context, settings, _) {
+            final showLunar = settings.showLunar;
+            return Column(
+              children: [
+                // 日期导航栏
+                _DayNavigationBar(viewModel: viewModel),
 
-            // 日期详情头部
-            _DayHeader(viewModel: viewModel),
+                // 日期详情头部
+                _DayHeader(viewModel: viewModel, showLunar: showLunar),
 
-            // 时间轴和事件区域
-            Expanded(
-              child: _DayTimeGrid(viewModel: viewModel),
-            ),
-          ],
+                // 时间轴和事件区域
+                Expanded(
+                  child: _DayTimeGrid(viewModel: viewModel),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -115,15 +122,19 @@ class _DayNavigationBar extends StatelessWidget {
 /// 日期详情头部（包含农历、天气等信息）
 class _DayHeader extends StatelessWidget {
   final CalendarViewModel viewModel;
+  final bool showLunar;
 
-  const _DayHeader({required this.viewModel});
+  const _DayHeader({
+    required this.viewModel,
+    required this.showLunar,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final date = viewModel.selectedDate;
-    final lunarInfo = LunarUtils.getLunarInfo(date);
+    final lunarInfo = showLunar ? LunarUtils.getLunarInfo(date) : null;
     final events = viewModel.selectedDateEvents;
 
     return Container(
@@ -179,37 +190,39 @@ class _DayHeader extends StatelessWidget {
                     color: colorScheme.onSurface,
                   ),
                 ),
-                const SizedBox(height: 4),
-                // 农历日期
-                Row(
-                  children: [
-                    Text(
-                      LunarUtils.getFullLunarString(date),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    if (lunarInfo.hasSpecialDay) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(4),
+                // 农历日期（根据设置显示）
+                if (showLunar && lunarInfo != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        LunarUtils.getFullLunarString(date),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colorScheme.onSurfaceVariant,
                         ),
-                        child: Text(
-                          _getSpecialDayName(lunarInfo),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.w500,
+                      ),
+                      if (lunarInfo.hasSpecialDay) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _getSpecialDayName(lunarInfo),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -251,7 +264,7 @@ class _DayHeader extends StatelessWidget {
   }
 }
 
-/// 日时间网格
+/// 日时间网格 - 使用 PageView 实现平滑滑动
 class _DayTimeGrid extends StatefulWidget {
   final CalendarViewModel viewModel;
 
@@ -263,16 +276,51 @@ class _DayTimeGrid extends StatefulWidget {
 
 class _DayTimeGridState extends State<_DayTimeGrid> {
   final ScrollController _scrollController = ScrollController();
+  late PageController _pageController;
   static const double hourHeight = 72.0;
   static const int startHour = 0;
   static const int endHour = 24;
+  static const int _initialPage = 1000; // 中间页，支持前后翻页
+  int _currentPage = _initialPage;
+  late DateTime _baseDate; // 初始页对应的日期
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _initialPage);
+    _baseDate = DateTime(
+      widget.viewModel.selectedDate.year,
+      widget.viewModel.selectedDate.month,
+      widget.viewModel.selectedDate.day,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToCurrentTime();
     });
+  }
+
+  /// 根据页面索引计算对应的日期
+  DateTime _getDateForPage(int page) {
+    final offset = page - _initialPage;
+    return _baseDate.add(Duration(days: offset));
+  }
+
+  @override
+  void didUpdateWidget(_DayTimeGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 如果 selectedDate 从外部改变（如日期选择器），重置 PageView
+    final expectedDate = _getDateForPage(_currentPage);
+    final currentSelected = widget.viewModel.selectedDate;
+    if (expectedDate.year != currentSelected.year ||
+        expectedDate.month != currentSelected.month ||
+        expectedDate.day != currentSelected.day) {
+      _baseDate = DateTime(
+        currentSelected.year,
+        currentSelected.month,
+        currentSelected.day,
+      );
+      _currentPage = _initialPage;
+      _pageController.jumpToPage(_initialPage);
+    }
   }
 
   void _scrollToCurrentTime() {
@@ -299,21 +347,40 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final events = widget.viewModel.selectedDateEvents;
+    return PageView.builder(
+      controller: _pageController,
+      onPageChanged: (index) {
+        final targetDate = _getDateForPage(index);
+        _currentPage = index;
+        // 更新 ViewModel 的日期
+        widget.viewModel.jumpToDate(targetDate);
+        widget.viewModel.selectDate(targetDate);
+      },
+      itemBuilder: (context, index) {
+        final displayDate = _getDateForPage(index);
+        return _buildDayContent(displayDate);
+      },
+    );
+  }
+
+  Widget _buildDayContent(DateTime displayDate) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final events = widget.viewModel.getEventsForDate(displayDate);
     final allDayEvents = events.where((e) => e.event.isAllDay).toList();
     final timedEvents = events.where((e) => !e.event.isAllDay).toList();
+    final isToday = widget.viewModel.isToday(displayDate);
 
     return Column(
       children: [
         // 全天事件区域
-        if (allDayEvents.isNotEmpty) _buildAllDaySection(allDayEvents, colorScheme),
+        if (allDayEvents.isNotEmpty)
+          _buildAllDaySection(allDayEvents, colorScheme),
 
         // 时间轴
         Expanded(
@@ -330,8 +397,7 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
                   ..._buildEventBlocks(timedEvents, colorScheme),
 
                   // 当前时间指示线
-                  if (widget.viewModel.isToday(widget.viewModel.selectedDate))
-                    _buildCurrentTimeIndicator(colorScheme),
+                  if (isToday) _buildCurrentTimeIndicator(colorScheme),
                 ],
               ),
             ),
@@ -535,10 +601,17 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
     );
   }
 
-  void _onEventTap(BuildContext context, EventInstance event) {
+  Future<void> _onEventTap(BuildContext context, EventInstance event) async {
     // 跳转到事件详情页
     final instanceDateStr = event.instanceStart.toIso8601String();
-    context.push('/event/${event.event.uid}?instanceDate=$instanceDateStr');
+    final result = await context.push<bool>(
+      '/event/${event.event.uid}?instanceDate=$instanceDateStr',
+    );
+
+    // 如果返回 true（删除或修改成功），刷新日历
+    if (result == true && context.mounted) {
+      widget.viewModel.refreshEvents();
+    }
   }
 
   Future<void> _onEventDragComplete(
@@ -552,37 +625,28 @@ class _DayTimeGridState extends State<_DayTimeGrid> {
 
     if (context.mounted) {
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('已更新: ${event.event.summary}'),
-            duration: const Duration(seconds: 2),
-            action: SnackBarAction(
-              label: '撤销',
-              onPressed: () async {
-                // 撤销：恢复原始时间
-                await viewModel.updateEventTime(
-                  EventInstance(
-                    event: event.event.copyWith(
-                      dtStart: newStart,
-                      dtEnd: newEnd,
-                    ),
-                    instanceStart: newStart,
-                    instanceEnd: newEnd,
-                  ),
-                  event.instanceStart,
-                  event.instanceEnd,
-                );
-              },
-            ),
-          ),
+        SnackBarHelper.show(
+          context,
+          '已更新: ${event.event.summary}',
+          actionLabel: '撤销',
+          onAction: () async {
+            // 撤销：恢复原始时间
+            await viewModel.updateEventTime(
+              EventInstance(
+                event: event.event.copyWith(
+                  dtStart: newStart,
+                  dtEnd: newEnd,
+                ),
+                instanceStart: newStart,
+                instanceEnd: newEnd,
+              ),
+              event.instanceStart,
+              event.instanceEnd,
+            );
+          },
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('更新失败，请重试'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        SnackBarHelper.showError(context, '更新失败，请重试');
       }
     }
   }

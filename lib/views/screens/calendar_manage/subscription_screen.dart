@@ -4,6 +4,7 @@ import '../../../data/models/calendar_model.dart';
 import '../../../data/repositories/calendar_repository.dart';
 import '../../../services/subscription_service.dart';
 import '../../../core/constants/color_constants.dart';
+import '../../../core/utils/snackbar_helper.dart';
 
 /// 订阅管理页面
 class SubscriptionScreen extends StatefulWidget {
@@ -833,21 +834,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ),
-    );
+    SnackBarHelper.showError(context, message);
   }
 
   void _showSuccess(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
-    );
+    SnackBarHelper.showSuccess(context, message);
   }
 }
